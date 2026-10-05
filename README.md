@@ -1,5 +1,7 @@
 # Battleship
 
+**Play it now: https://battleship-9ksr.onrender.com** (free tier — first load may take up to a minute to wake up)
+
 Player-vs-AI Battleship game: Flask backend, vanilla HTML/CSS/JS frontend with animated ocean, airstrikes, sound effects and three AI difficulties.
 
 ## Setup
