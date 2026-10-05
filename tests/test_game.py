@@ -88,6 +88,9 @@ def test_player_fire_triggers_ai_shot():
     assert res["player_shot"]["result"] in ("hit", "miss")
     assert res["ai_shot"] is not None
     assert len(g.player_board.shots) == 1
+    whos = {e["who"] for e in g.log}
+    assert {"player", "ai"}.issubset(whos)
+    assert all(e["who"] in ("player", "ai", "system") for e in g.log)
 
 
 def test_fire_before_start_raises():

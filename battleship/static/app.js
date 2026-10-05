@@ -12,6 +12,19 @@ let state = null;
 let selectedShip = null;
 let horizontal = true;
 let busy = false;
+let lastShots = { player: null, ai: null };
+
+function markLastShot(boardEl, r, c) {
+  boardEl
+    .querySelectorAll(".cell.last-shot")
+    .forEach((d) => d.classList.remove("last-shot"));
+  boardEl.querySelectorAll(".last-ring").forEach((d) => d.remove());
+  const cell = cellAt(boardEl, r, c);
+  cell.classList.add("last-shot");
+  const ring = document.createElement("span");
+  ring.className = "last-ring";
+  cell.appendChild(ring);
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -37,6 +50,7 @@ async function newGame() {
   state = data.state;
   selectedShip = SHIPS[0][0];
   horizontal = true;
+  lastShots = { player: null, ai: null };
   const demo = new URLSearchParams(location.search).get("demo");
   if (demo === "win" || demo === "lose") {
     state = (await api(`/api/games/${gameId}/randomize`, "POST")).state;
@@ -607,6 +621,7 @@ function renderPlayerBoard() {
     }
   }
   renderShips(el, state.player.ships);
+  if (lastShots.ai) markLastShot(el, lastShots.ai[0], lastShots.ai[1]);
 }
 
 function renderEnemyBoard() {
@@ -633,6 +648,8 @@ function renderEnemyBoard() {
     if (s.sunk) cellAt(el, r, c).classList.add("sunk");
   }
   renderShips(el, state.ai.ships);
+  if (lastShots.player)
+    markLastShot(el, lastShots.player[0], lastShots.player[1]);
   if (state.phase === "playing") {
     el.classList.add("clickable");
     for (let r = 0; r < SIZE; r++) {
@@ -843,9 +860,10 @@ async function fire(row, col) {
       airstrike($("enemy-board"), row, col, "player"),
     ]);
     state = data.state;
+    const ps = data.turn.player_shot;
+    lastShots.player = [ps.row, ps.col];
     render({ deferGameOver: true });
 
-    const ps = data.turn.player_shot;
     if (ps.result === "hit") {
       boom($("enemy-board"), ps.row, ps.col, !!ps.sunk);
       if (ps.sunk) GameAudio.sunk();
@@ -867,6 +885,8 @@ async function fire(row, col) {
       if (fireEl) fireEl.remove();
       await airstrike($("player-board"), as.row, as.col, "ai");
       pCell.classList.add(...hidden);
+      lastShots.ai = [as.row, as.col];
+      markLastShot($("player-board"), as.row, as.col);
       if (as.result === "hit") {
         addFire(pCell, !!as.sunk);
         boom($("player-board"), as.row, as.col, !!as.sunk);
@@ -945,7 +965,15 @@ function renderFleetList(ul, ships, shots, { known }) {
 
 function renderLog() {
   const log = $("log");
-  log.innerHTML = state.log.map((l) => `<div>${l}</div>`).join("");
+  log.innerHTML = state.log
+    .map((e, i) => {
+      const badge =
+        e.who === "player" ? "YOU" : e.who === "ai" ? "ENEMY" : null;
+      return `<div class="log-line ${e.who}${
+        i === state.log.length - 1 ? " latest" : ""
+      }">${badge ? `<span class="who">${badge}</span>` : ""}${e.text}</div>`;
+    })
+    .join("");
   log.scrollTop = log.scrollHeight;
 }
 

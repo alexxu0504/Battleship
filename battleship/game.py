@@ -109,7 +109,10 @@ class Game:
         self.ai: AIStrategy = make_ai(difficulty, self.rng)
         self.phase = "placement"
         self.winner: Optional[str] = None
-        self.log: List[str] = []
+        self.log: List[dict] = []
+
+    def _log(self, who: str, text: str) -> None:
+        self.log.append({"who": who, "text": text})
 
     def place_player_ship(self, name: str, row: int, col: int, horizontal: bool) -> None:
         if self.phase != "placement":
@@ -135,7 +138,7 @@ class Game:
         if len(self.player_board.ships) < len(SHIPS):
             raise ValueError("All ships must be placed before starting")
         self.phase = "playing"
-        self.log.append("Battle started — fire away!")
+        self._log("system", "Battle started — fire away!")
 
     def player_fire(self, row: int, col: int) -> dict:
         if self.phase != "playing":
@@ -143,31 +146,31 @@ class Game:
         res = self.ai_board.fire(row, col)
         player_shot = {"row": row, "col": col, "result": res["result"], "sunk": res["sunk"]}
         if res["result"] == "hit":
-            self.log.append("You hit at %s!" % coord_label(row, col))
+            self._log("player", "You hit at %s!" % coord_label(row, col))
         else:
-            self.log.append("You missed at %s." % coord_label(row, col))
+            self._log("player", "You missed at %s." % coord_label(row, col))
         if res["sunk"]:
-            self.log.append("You sank the enemy %s!" % res["sunk"])
+            self._log("player", "You sank the enemy %s!" % res["sunk"])
         ai_shot = None
         if self.ai_board.all_sunk:
             self.phase = "over"
             self.winner = "player"
-            self.log.append("Victory! All enemy ships sunk.")
+            self._log("system", "Victory! All enemy ships sunk.")
         else:
             r, c = self.ai.choose_shot(self.player_board)
             ares = self.player_board.fire(r, c)
             self.ai.notify(r, c, ares["result"], ares["sunk"])
             ai_shot = {"row": r, "col": c, "result": ares["result"], "sunk": ares["sunk"]}
             if ares["result"] == "hit":
-                self.log.append("Enemy hit at %s!" % coord_label(r, c))
+                self._log("ai", "Enemy hit at %s!" % coord_label(r, c))
             else:
-                self.log.append("Enemy missed at %s." % coord_label(r, c))
+                self._log("ai", "Enemy missed at %s." % coord_label(r, c))
             if ares["sunk"]:
-                self.log.append("Enemy sank your %s!" % ares["sunk"])
+                self._log("ai", "Enemy sank your %s!" % ares["sunk"])
             if self.player_board.all_sunk:
                 self.phase = "over"
                 self.winner = "ai"
-                self.log.append("Defeat — your fleet has been destroyed.")
+                self._log("system", "Defeat — your fleet has been destroyed.")
         return {"player_shot": player_shot, "ai_shot": ai_shot, "winner": self.winner}
 
     def to_state(self, reveal_ai: bool = False) -> dict:
