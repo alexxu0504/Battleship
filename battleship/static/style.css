@@ -70,7 +70,8 @@ button:hover:not(:disabled) { background: #1b4063; }
 .banner-buttons { display: flex; gap: 10px; justify-content: center; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 
-main { padding: 24px; }
+main { padding: 24px; overflow: clip; }
+html, body { overflow-x: hidden; }
 
 .hidden { display: none !important; }
 
