@@ -3,8 +3,8 @@
 body {
   margin: 0;
   font-family: "Segoe UI", system-ui, sans-serif;
-  background: #0d1420;
-  color: #dbe6f5;
+  background: #0ABAB5;
+  color: #0f2e2d;
   min-height: 100vh;
 }
 
@@ -13,28 +13,36 @@ header {
   align-items: center;
   gap: 20px;
   padding: 14px 24px;
-  background: #111c2e;
-  border-bottom: 1px solid #1e2f4a;
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
   flex-wrap: wrap;
 }
 
-header h1 { margin: 0; font-size: 22px; letter-spacing: 2px; text-transform: uppercase; }
+header h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(15, 46, 45, 0.45);
+}
 
 .controls { display: flex; align-items: center; gap: 10px; }
 
-#status { margin: 0; margin-left: auto; color: #8fb3e8; }
+#status { margin: 0; margin-left: auto; color: #0f2e2d; font-weight: 600; }
 
 select, button {
-  background: #1b2a44;
-  color: #dbe6f5;
-  border: 1px solid #2e4a75;
+  background: rgba(255, 255, 255, 0.85);
+  color: #0f2e2d;
+  border: 1px solid #7fd8d4;
   border-radius: 6px;
   padding: 7px 14px;
   font-size: 14px;
   cursor: pointer;
 }
 
-button:hover:not(:disabled) { background: #253a5e; }
+button:hover:not(:disabled) { background: #ffffff; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 main { padding: 24px; }
@@ -56,10 +64,12 @@ main { padding: 24px; }
 }
 
 .cell {
+  position: relative;
+  overflow: visible;
   width: 34px;
   height: 34px;
-  background: #16233a;
-  border: 1px solid #22354f;
+  background: #d7f3f1;
+  border: 1px solid #8fd9d5;
   border-radius: 3px;
   display: flex;
   align-items: center;
@@ -68,15 +78,95 @@ main { padding: 24px; }
 }
 
 .board.clickable .cell { cursor: crosshair; }
-.board.clickable .cell:hover { background: #2a4a7a; }
+.board.clickable .cell:hover { background: #ffffff; }
 
-.cell.ship { background: #3d5a80; }
-.cell.hit { background: #a83232; }
-.cell.miss { background: #16233a; }
-.cell.miss::after { content: "•"; color: #6b7f9e; font-size: 18px; }
-.cell.sunk { background: #5c1f1f; }
-.cell.ghost-valid { background: #2f7a44 !important; }
-.cell.ghost-invalid { background: #8a2f2f !important; }
+.cell.ship { background: #1f6f6c; }
+.cell.hit { background: #e5484d; }
+.cell.sunk { background: #8c1d21; }
+
+.cell.miss { background: #bfe9e6; }
+.cell.miss::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #0f2e2d;
+  opacity: 0.75;
+}
+
+.cell.ghost-valid { background: #4caf50 !important; }
+.cell.ghost-invalid { background: #e53935 !important; }
+
+/* Bomb drop */
+.bomb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  background: #111;
+  border-radius: 50%;
+  box-shadow: inset -3px -3px 4px rgba(255, 255, 255, 0.35);
+  animation: bomb-drop 0.5s cubic-bezier(0.4, 0, 0.8, 1) forwards;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.bomb::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 3px;
+  height: 6px;
+  margin-left: -1.5px;
+  background: #777;
+  border-radius: 1px;
+}
+
+@keyframes bomb-drop {
+  from { transform: translateY(-140px) scale(1.6); opacity: 0; }
+  15%  { opacity: 1; }
+  to   { transform: translateY(0) scale(0.7); opacity: 1; }
+}
+
+/* Impact effects */
+.cell.impact-hit {
+  animation: impact-flash 0.45s ease-out;
+}
+.cell.impact-hit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  animation: ring-orange 0.45s ease-out forwards;
+  pointer-events: none;
+}
+.cell.impact-miss::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  animation: ring-splash 0.45s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes impact-flash {
+  0%   { transform: scale(1); box-shadow: none; }
+  40%  { transform: scale(1.35); box-shadow: 0 0 24px 6px rgba(255, 140, 0, 0.9); background: radial-gradient(circle, #ffb14d, #e5484d); }
+  100% { transform: scale(1); }
+}
+
+@keyframes ring-orange {
+  from { box-shadow: 0 0 0 0 rgba(255, 140, 0, 0.9); }
+  to   { box-shadow: 0 0 0 18px rgba(255, 140, 0, 0); }
+}
+
+@keyframes ring-splash {
+  from { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.9); }
+  to   { box-shadow: 0 0 0 14px rgba(255, 255, 255, 0); }
+}
 
 #tray { display: flex; flex-direction: column; gap: 8px; }
 
@@ -85,59 +175,64 @@ main { padding: 24px; }
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: #16233a;
-  border: 1px solid #22354f;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #7fd8d4;
   border-radius: 6px;
   cursor: pointer;
   width: 240px;
+  color: #0f2e2d;
 }
 
-.tray-ship.selected { border-color: #4d8fe8; background: #1d3152; }
+.tray-ship.selected { border-color: #036c69; background: #d9f5f3; }
 .tray-ship.placed { opacity: 0.4; }
 
 .tray-ship .dots { display: flex; gap: 3px; }
 .tray-ship .dot {
   width: 14px; height: 14px;
-  background: #6b8fbf;
+  background: #1f6f6c;
   border-radius: 2px;
 }
 
 .tray-buttons { display: flex; gap: 10px; margin-top: 14px; }
 
-.hint { color: #6b7f9e; font-size: 13px; }
+.hint { color: #1d4b49; font-size: 13px; }
 
 .log-wrap { min-width: 260px; }
 
 #log {
-  background: #111c2e;
-  border: 1px solid #1e2f4a;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #7fd8d4;
   border-radius: 6px;
   padding: 10px 14px;
   height: 340px;
   overflow-y: auto;
   font-size: 13px;
   line-height: 1.6;
+  color: #0f2e2d;
 }
 
 #enemy-fleet { list-style: none; padding: 0; }
-#enemy-fleet li.sunk { color: #e07070; text-decoration: line-through; }
-#enemy-fleet li { color: #9fb6d8; }
+#enemy-fleet li { color: #1d4b49; }
+#enemy-fleet li.sunk { color: #8c1d21; text-decoration: line-through; }
+
+h2, h3 { color: #0f2e2d; }
 
 #gameover {
   position: fixed;
   inset: 0;
-  background: rgba(5, 10, 18, 0.8);
+  background: rgba(10, 120, 117, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .banner {
-  background: #16233a;
-  border: 1px solid #2e4a75;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #7fd8d4;
   border-radius: 10px;
   padding: 40px 60px;
   text-align: center;
+  color: #0f2e2d;
 }
 
 .banner h2 { margin-top: 0; font-size: 28px; }

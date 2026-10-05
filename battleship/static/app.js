@@ -11,6 +11,7 @@ let gameId = null;
 let state = null;
 let selectedShip = null;
 let horizontal = true;
+let busy = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -36,7 +37,7 @@ async function newGame() {
   render();
 }
 
-function render() {
+function render(opts = {}) {
   $("gameover").classList.add("hidden");
   if (state.phase === "placement") {
     $("placement").classList.remove("hidden");
@@ -55,12 +56,18 @@ function render() {
     renderEnemyBoard();
     renderFleet();
     renderLog();
-    if (state.phase === "over") {
-      $("gameover").classList.remove("hidden");
-      $("gameover-text").textContent =
-        state.winner === "player" ? "Victory! You sank the enemy fleet." : "Defeat — your fleet was destroyed.";
+    if (state.phase === "over" && !opts.deferGameOver) {
+      showGameOver();
     }
   }
+}
+
+function showGameOver() {
+  $("gameover").classList.remove("hidden");
+  $("gameover-text").textContent =
+    state.winner === "player"
+      ? "Victory! You sank the enemy fleet."
+      : "Defeat — your fleet was destroyed.";
 }
 
 function makeBoard(el) {
@@ -264,14 +271,63 @@ function renderEnemyBoard() {
   }
 }
 
+function dropBomb(cell) {
+  return new Promise((resolve) => {
+    const bomb = document.createElement("div");
+    bomb.className = "bomb";
+    cell.appendChild(bomb);
+    const done = () => resolve(bomb);
+    bomb.addEventListener("animationend", done, { once: true });
+    setTimeout(done, 600);
+  });
+}
+
+function impact(boardEl, r, c, result) {
+  const cell = cellAt(boardEl, r, c);
+  const cls = result === "hit" ? "impact-hit" : "impact-miss";
+  cell.classList.add(cls);
+  cell.addEventListener("animationend", () => cell.classList.remove(cls), {
+    once: true,
+  });
+}
+
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
 async function fire(row, col) {
-  if (state.phase !== "playing") return;
+  if (busy || state.phase !== "playing") return;
   if (shotsMap(state.ai.shots)[`${row},${col}`]) return;
+  busy = true;
   try {
-    const data = await api(`/api/games/${gameId}/fire`, "POST", { row, col });
+    const enemyCell = cellAt($("enemy-board"), row, col);
+    const [data] = await Promise.all([
+      api(`/api/games/${gameId}/fire`, "POST", { row, col }),
+      dropBomb(enemyCell),
+    ]);
+    enemyCell.querySelectorAll(".bomb").forEach((b) => b.remove());
     state = data.state;
-    render();
-  } catch (e) {}
+    render({ deferGameOver: true });
+
+    const ps = data.turn.player_shot;
+    impact($("enemy-board"), ps.row, ps.col, ps.result);
+
+    const as = data.turn.ai_shot;
+    if (as) {
+      await sleep(350);
+      const pCell = cellAt($("player-board"), as.row, as.col);
+      const hidden = ["hit", "miss", "sunk"].filter((cl) =>
+        pCell.classList.contains(cl)
+      );
+      pCell.classList.remove("hit", "miss", "sunk");
+      const bomb = await dropBomb(pCell);
+      bomb.remove();
+      pCell.classList.add(...hidden);
+      impact($("player-board"), as.row, as.col, as.result);
+    }
+  } catch (e) {
+  } finally {
+    busy = false;
+    if (state.phase === "over") showGameOver();
+  }
 }
 
 function renderFleet() {
