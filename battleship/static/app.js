@@ -646,14 +646,14 @@ function renderEnemyBoard() {
   }
 }
 
-function planeSVG(dir) {
-  const enemy = dir === -1;
+function planeSVG(side) {
+  const enemy = side === "ai";
   const body = enemy ? "#6b6b6b" : "#5b6b3a";
   const dark = enemy ? "#444444" : "#3f4a28";
   const marks = enemy
     ? `<path d="M19 4 h6 M22 1.5 v8 M19 16 h6 M22 13.5 v8" stroke="#111" stroke-width="1.4"/>`
     : `<g><circle cx="22" cy="5.5" r="3" fill="#1c4587"/><circle cx="22" cy="5.5" r="1.9" fill="#fff"/><circle cx="22" cy="5.5" r="0.9" fill="#c0392b"/></g><g><circle cx="22" cy="22.5" r="3" fill="#1c4587"/><circle cx="22" cy="22.5" r="1.9" fill="#fff"/><circle cx="22" cy="22.5" r="0.9" fill="#c0392b"/></g>`;
-  return `<svg width="68" height="28" viewBox="0 0 68 28"${enemy ? ' style="transform:scaleX(-1)"' : ""}>
+  return `<svg width="68" height="28" viewBox="0 0 68 28" style="margin-left:-34px;margin-top:-14px">
     <path d="M34 1 L16 10 L16 18 L34 27 Z" fill="${body}" stroke="${dark}"/>
     <path d="M10 8 L3 11 L3 17 L10 20 Z" fill="${body}" stroke="${dark}"/>
     <path d="M6 10.5 L50 10.5 Q60 14 50 17.5 L6 17.5 Z" fill="${body}" stroke="${dark}"/>
@@ -680,7 +680,9 @@ function bombEl() {
   return d;
 }
 
-function airstrike(boardEl, row, col, dir) {
+let lastHeading = null;
+
+function airstrike(boardEl, row, col, side) {
   return new Promise((resolve) => {
     const sky = boardEl.querySelector(".sky-layer");
     const OFF = 60; // sky-layer inset
@@ -711,30 +713,43 @@ function airstrike(boardEl, row, col, dir) {
       anim.onfinish = fin;
       return;
     }
-    const startX = (dir === 1 ? -80 : 358 + 80) + OFF;
-    const endX = (dir === 1 ? 358 + 80 : -80) + OFF;
-    const planeY = cy - 14;
-    const dur = 1100;
-    const tRelease = Math.abs((cx - startX) / (endX - startX)) * dur;
+    const headings = [0, 90, 180, 270].filter((h) => h !== lastHeading);
+    const heading = headings[(Math.random() * headings.length) | 0];
+    lastHeading = heading;
+    window.__lastHeading = heading;
+    const rad = (heading * Math.PI) / 180;
+    const ux = Math.cos(rad);
+    const uy = Math.sin(rad);
+    const start = { x: cx - ux * 300, y: cy - uy * 300 };
+    const end = { x: cx + ux * 300, y: cy + uy * 300 };
+    const dur = 1300;
+    const tRelease = dur / 2;
     const plane = document.createElement("div");
-    plane.className = "plane" + (dir === -1 ? " enemy" : "");
-    plane.innerHTML = planeSVG(dir);
+    plane.className = "plane" + (side === "ai" ? " enemy" : "");
+    plane.dataset.heading = heading;
+    plane.innerHTML = planeSVG(side);
     const shadow = document.createElement("div");
     shadow.className = "plane-shadow";
     sky.appendChild(shadow);
     sky.appendChild(plane);
-    const easing = "cubic-bezier(.35,.05,.65,.95)";
+    const easing = "cubic-bezier(.4,0,.6,1)";
     const pAnim = plane.animate(
       [
-        { transform: `translate(${startX}px, ${planeY}px)` },
-        { transform: `translate(${endX}px, ${planeY}px)` },
+        {
+          transform: `translate(${start.x}px, ${start.y}px) rotate(${heading}deg)`,
+        },
+        { transform: `translate(${end.x}px, ${end.y}px) rotate(${heading}deg)` },
       ],
       { duration: dur, easing, fill: "forwards" }
     );
     shadow.animate(
       [
-        { transform: `translate(${startX + 10}px, ${planeY + 28}px)` },
-        { transform: `translate(${endX + 10}px, ${planeY + 28}px)` },
+        {
+          transform: `translate(${start.x - 28 + 10}px, ${start.y - 8 + 28}px) rotate(${heading}deg)`,
+        },
+        {
+          transform: `translate(${end.x - 28 + 10}px, ${end.y - 8 + 28}px) rotate(${heading}deg)`,
+        },
       ],
       { duration: dur, easing, fill: "forwards" }
     );
@@ -742,19 +757,23 @@ function airstrike(boardEl, row, col, dir) {
       plane.remove();
       shadow.remove();
     };
-    GameAudio.planePass(dir);
+    if (heading === 0 || heading === 180) {
+      GameAudio.planePass(-ux, ux, dur / 1000, 1200);
+    } else {
+      GameAudio.planePass(-uy * 0.3, uy * 0.3, dur / 1000, 1100);
+    }
     setTimeout(() => {
       const bomb = bombEl();
-      const bombStartY = planeY + 10;
-      bomb.style.left = cx - 5 + "px";
-      bomb.style.top = bombStartY + "px";
+      bomb.style.left = cx - 5 - ux * 12 + "px";
+      bomb.style.top = cy - 14 + "px";
       sky.appendChild(bomb);
       GameAudio.bombWhistle(0.45);
+      const spin = ux + uy >= 0 ? 25 : -25;
       const anim = bomb.animate(
         [
           { transform: "translate(0, 0) scale(1.1) rotate(0deg)" },
           {
-            transform: `translate(${dir * 12}px, ${cy - bombStartY}px) scale(0.6) rotate(${dir * 25}deg)`,
+            transform: `translate(${ux * 12}px, 14px) scale(0.6) rotate(${spin}deg)`,
           },
         ],
         { duration: 450, easing: "cubic-bezier(.4,0,.8,1)", fill: "forwards" }
@@ -822,7 +841,7 @@ async function fire(row, col) {
     GameAudio.init();
     const [data] = await Promise.all([
       api(`/api/games/${gameId}/fire`, "POST", { row, col }),
-      airstrike($("enemy-board"), row, col, 1),
+      airstrike($("enemy-board"), row, col, "player"),
     ]);
     state = data.state;
     render({ deferGameOver: true });
@@ -847,7 +866,7 @@ async function fire(row, col) {
       pCell.classList.remove("hit", "miss", "sunk");
       const fireEl = pCell.querySelector(".fire");
       if (fireEl) fireEl.remove();
-      await airstrike($("player-board"), as.row, as.col, -1);
+      await airstrike($("player-board"), as.row, as.col, "ai");
       pCell.classList.add(...hidden);
       if (as.result === "hit") {
         addFire(pCell, !!as.sunk);

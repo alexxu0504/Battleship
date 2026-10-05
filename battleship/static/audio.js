@@ -373,13 +373,13 @@ const GameAudio = (() => {
     return osc;
   }
 
-  function planePass(dir = 1, duration = 1.1) {
+  function planePass(panFrom = -1, panTo = 1, duration = 1.1, peak = 1200) {
     if (!ctx || muted) return;
     const t = ctx.currentTime;
     const f = ctx.createBiquadFilter();
     f.type = "lowpass";
     f.frequency.setValueAtTime(700, t);
-    f.frequency.linearRampToValueAtTime(1200, t + duration * 0.45);
+    f.frequency.linearRampToValueAtTime(peak, t + duration * 0.45);
     f.frequency.linearRampToValueAtTime(600, t + duration);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
@@ -397,8 +397,8 @@ const GameAudio = (() => {
     let out = g;
     if (ctx.createStereoPanner) {
       const p = ctx.createStereoPanner();
-      p.pan.setValueAtTime(-dir, t);
-      p.pan.linearRampToValueAtTime(dir, t + duration);
+      p.pan.setValueAtTime(panFrom, t);
+      p.pan.linearRampToValueAtTime(panTo, t + duration);
       g.connect(p);
       out = p;
     }
