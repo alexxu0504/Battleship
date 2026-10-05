@@ -56,6 +56,216 @@ const GameAudio = (() => {
     return musicVolume;
   }
 
+  function duckMusic(seconds) {
+    if (!ctx || !musicGain) return;
+    const t = ctx.currentTime;
+    musicGain.gain.cancelScheduledValues(t);
+    musicGain.gain.setValueAtTime(musicGain.gain.value, t);
+    musicGain.gain.linearRampToValueAtTime(musicVolume * 0.25, t + 0.4);
+    musicGain.gain.setValueAtTime(musicVolume * 0.25, t + seconds);
+    musicGain.gain.linearRampToValueAtTime(musicVolume, t + seconds + 1.5);
+  }
+
+  function brassNote(freq, when, dur, peak = 0.25) {
+    const f = ctx.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.setValueAtTime(700, when);
+    f.frequency.linearRampToValueAtTime(2200, when + 0.05);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(peak, when + 0.03);
+    g.gain.setValueAtTime(peak, when + Math.max(0.03, dur - 0.25));
+    g.gain.linearRampToValueAtTime(0.0001, when + dur);
+    for (const det of [-6, 6]) {
+      const o = ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = freq;
+      o.detune.value = det;
+      o.connect(f);
+      o.start(when);
+      o.stop(when + dur + 0.05);
+    }
+    f.connect(g);
+    g.connect(sfxGain);
+  }
+
+  function firework() {
+    if (!ctx || muted) return;
+    const t = ctx.currentTime;
+    const pan = Math.random() * 1.6 - 0.8;
+    playNoise({
+      duration: 0.12,
+      filterType: "lowpass",
+      freqStart: 800,
+      freqEnd: 200,
+      gainPeak: 0.25,
+      attack: 0.005,
+      pan,
+    });
+    const n = 4 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+      playNoise({
+        duration: 0.02,
+        filterType: "highpass",
+        freqStart: 3000,
+        gainPeak: 0.08,
+        attack: 0.002,
+        when: t + 0.08 + Math.random() * 0.35,
+        pan,
+      });
+    }
+  }
+
+  function slam() {
+    if (!ctx || muted) return;
+    tone({ type: "sine", freqStart: 70, freqEnd: 30, duration: 0.4, gainPeak: 0.9 });
+    playNoise({
+      duration: 0.35,
+      filterType: "lowpass",
+      freqStart: 400,
+      freqEnd: 60,
+      gainPeak: 0.7,
+      attack: 0.003,
+      decay: 0.35,
+    });
+  }
+
+  function victory() {
+    if (!ctx || muted) return;
+    const t0 = ctx.currentTime + 0.05;
+    const E = 0.225, Q = 0.45;
+    const G4 = 392.0, C5 = 523.25, E5 = 659.25, G5 = 783.99, A5 = 880.0, C6 = 1046.5;
+    const at = (q) => t0 + q * Q;
+    // G4 G4 G4 eighths -> C5 dotted quarter
+    brassNote(G4, at(0), E * 0.9);
+    brassNote(G4, at(0.5), E * 0.9);
+    brassNote(G4, at(1), E * 0.9);
+    brassNote(C5, at(1.5), Q * 1.4);
+    tone({ type: "triangle", freqStart: C5 / 4, duration: Q * 1.4, gainPeak: 0.18, when: at(1.5) });
+    // rest quarter, then E5 E5 E5 eighths -> G5 half
+    brassNote(E5, at(3), E * 0.9);
+    brassNote(E5, at(3.5), E * 0.9);
+    brassNote(E5, at(4), E * 0.9);
+    brassNote(G5, at(4.5), Q * 2, 0.22);
+    brassNote(E5, at(4.5), Q * 2, 0.14);
+    tone({ type: "triangle", freqStart: G5 / 4, duration: Q * 2, gainPeak: 0.18, when: at(4.5) });
+    // A5 G5 eighths -> C6 whole with crescendo
+    brassNote(A5, at(6.5), E * 0.9);
+    brassNote(G5, at(7), E * 0.9);
+    brassNote(C6, at(7.5), Q * 3.5, 0.28);
+    brassNote(G5, at(7.5), Q * 3.5, 0.16);
+    tone({ type: "triangle", freqStart: C6 / 4, duration: Q * 3.5, gainPeak: 0.2, when: at(7.5) });
+    // snare rolls under the first two bars (16th notes, ~90ms)
+    for (let i = 0; i < 12; i++) {
+      playNoise({
+        duration: 0.05,
+        filterType: "bandpass",
+        freqStart: 1800,
+        gainPeak: 0.07,
+        attack: 0.002,
+        q: 1.2,
+        when: t0 + i * 0.11,
+      });
+    }
+    // cymbal crash on final C6
+    playNoise({
+      duration: 2,
+      filterType: "highpass",
+      freqStart: 4000,
+      gainPeak: 0.2,
+      attack: 0.005,
+      decay: 2,
+      when: at(7.5),
+    });
+  }
+
+  function horn(freqA, freqB, when, peak) {
+    const f = ctx.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.value = 500;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(peak, when + 0.5);
+    g.gain.setValueAtTime(peak, when + 2.1);
+    g.gain.linearRampToValueAtTime(0.0001, when + 2.9);
+    const lfo = ctx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 4;
+    const lfoDepth = ctx.createGain();
+    lfoDepth.gain.value = 1.5;
+    lfo.connect(lfoDepth);
+    for (const fr of [freqA, freqB]) {
+      const o = ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = fr;
+      lfoDepth.connect(o.frequency);
+      o.connect(f);
+      o.start(when);
+      o.stop(when + 3);
+    }
+    lfo.start(when);
+    lfo.stop(when + 3);
+    f.connect(g);
+    g.connect(sfxGain);
+  }
+
+  function tympani(when) {
+    tone({ type: "sine", freqStart: 55, freqEnd: 40, duration: 0.5, gainPeak: 0.5, when });
+    playNoise({
+      duration: 0.15,
+      filterType: "lowpass",
+      freqStart: 300,
+      gainPeak: 0.3,
+      attack: 0.003,
+      when,
+    });
+  }
+
+  function defeat() {
+    if (!ctx || muted) return;
+    const t = ctx.currentTime;
+    // sub rumble
+    playNoise({
+      duration: 2.5,
+      filterType: "lowpass",
+      freqStart: 150,
+      freqEnd: 25,
+      gainPeak: 0.8,
+      attack: 0.01,
+      decay: 2.5,
+    });
+    tone({ type: "sine", freqStart: 60, freqEnd: 20, duration: 2, gainPeak: 0.7 });
+    // ship's horns
+    horn(92, 138, t + 0.4, 0.22);
+    horn(78, 117, t + 3.2, 0.15);
+    // minor dirge: D4 C4 Bb3 A3 then Ab3->G3 slide
+    const dirge = [
+      [293.66, 1.0, 0.6],
+      [261.63, 1.6, 0.6],
+      [233.08, 2.2, 0.6],
+      [220.0, 2.8, 1.2],
+    ];
+    for (const [f, off, d] of dirge) brassNote(f, t + off, d, 0.12);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t + 4.0);
+    g.gain.linearRampToValueAtTime(0.12, t + 4.05);
+    g.gain.linearRampToValueAtTime(0.0001, t + 5.8);
+    const slide = ctx.createOscillator();
+    slide.type = "sawtooth";
+    slide.frequency.setValueAtTime(207.65, t + 4.0); // Ab3
+    slide.frequency.exponentialRampToValueAtTime(196.0, t + 5.8); // G3
+    const sf = ctx.createBiquadFilter();
+    sf.type = "lowpass";
+    sf.frequency.value = 1200;
+    slide.connect(sf);
+    sf.connect(g);
+    g.connect(sfxGain);
+    slide.start(t + 4.0);
+    slide.stop(t + 5.9);
+    // sparse tympani
+    for (const off of [0, 1.2, 2.4, 4.2]) tympani(t + off);
+  }
+
   function setMuted(m) {
     muted = m;
     localStorage.setItem("battleship.muted", m ? "1" : "0");
@@ -253,35 +463,6 @@ const GameAudio = (() => {
     tone({ type: "square", freqStart: 600, duration: 0.03, gainPeak: 0.05 });
   }
 
-  function victory() {
-    if (!ctx || muted) return;
-    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
-    notes.forEach((f, i) => {
-      tone({
-        type: "triangle",
-        freqStart: f,
-        duration: 0.18,
-        gainPeak: 0.2,
-        when: ctx.currentTime + i * 0.16,
-      });
-    });
-  }
-
-  function defeat() {
-    if (!ctx || muted) return;
-    const notes = [220, 174.61, 146.83]; // A3 F3 D3
-    notes.forEach((f, i) => {
-      tone({
-        type: "sawtooth",
-        freqStart: f,
-        duration: 0.35,
-        gainPeak: 0.15,
-        when: ctx.currentTime + i * 0.3,
-        filterFreq: 900,
-      });
-    });
-  }
-
   function startAmbience() {
     if (!ctx || ambience) return;
     const nodes = [];
@@ -386,6 +567,9 @@ const GameAudio = (() => {
     isMuted,
     setMusicVolume,
     getMusicVolume,
+    duckMusic,
+    firework,
+    slam,
     bombWhistle,
     explosion,
     splash,

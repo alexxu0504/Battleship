@@ -28,12 +28,24 @@ async function api(path, method = "GET", body = null) {
 }
 
 async function newGame() {
+  document.body.classList.remove("defeated");
+  $("gameover").classList.remove("win", "lose");
+  FX.stop();
   const difficulty = $("difficulty").value;
   const data = await api("/api/games", "POST", { difficulty });
   gameId = data.id;
   state = data.state;
   selectedShip = SHIPS[0][0];
   horizontal = true;
+  const demo = new URLSearchParams(location.search).get("demo");
+  if (demo === "win" || demo === "lose") {
+    state = (await api(`/api/games/${gameId}/randomize`, "POST")).state;
+    state = (await api(`/api/games/${gameId}/start`, "POST")).state;
+    state = { ...state, phase: "over", winner: demo === "win" ? "player" : "ai" };
+    render({ deferGameOver: true });
+    showGameOver();
+    return;
+  }
   render();
 }
 
@@ -62,12 +74,241 @@ function render(opts = {}) {
   }
 }
 
+/* ---------- end-of-game FX ---------- */
+
+const FX = (() => {
+  const canvas = document.getElementById("fx-canvas");
+  const g = canvas.getContext("2d");
+  let raf = null;
+  let timer = null;
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  function stop() {
+    if (raf) cancelAnimationFrame(raf);
+    if (timer) clearTimeout(timer);
+    raf = timer = null;
+    g.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function start(mode) {
+    stop();
+    resize();
+    const W = canvas.width, H = canvas.height;
+    const t0 = performance.now();
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    const confetti = [], rockets = [], sparks = [], smoke = [], embers = [];
+    const colors = ["#ffd54a", "#ffffff", "#0ABAB5", "#e5484d", "#036c69"];
+    let nextRocket = 0;
+
+    if (mode === "win") {
+      for (let i = 0; i < 220; i++) {
+        confetti.push({
+          x: rnd(0, W), y: rnd(-H, 0),
+          vx: rnd(-0.6, 0.6), vy: rnd(1.2, 3.2),
+          rot: rnd(0, Math.PI * 2), vr: rnd(-0.15, 0.15),
+          c: colors[i % colors.length], ph: rnd(0, 6.28),
+        });
+      }
+    } else {
+      for (let i = 0; i < 60; i++) {
+        smoke.push({
+          x: rnd(0, W), y: rnd(H * 0.66, H + 40),
+          r: rnd(18, 46), vy: rnd(0.2, 0.7), vx: rnd(-0.15, 0.15),
+          grow: rnd(0.15, 0.4), a: rnd(0.18, 0.35), t: rnd(0, 6),
+        });
+      }
+      for (let i = 0; i < 80; i++) {
+        embers.push({
+          x: rnd(0, W), y: rnd(H * 0.5, H),
+          vy: rnd(0.4, 1.4), vx: rnd(-0.3, 0.3),
+          s: rnd(1, 2.6), ph: rnd(0, 6.28),
+        });
+      }
+    }
+
+    function frame(now) {
+      if (document.getElementById("gameover").classList.contains("hidden")) {
+        stop();
+        return;
+      }
+      const t = (now - t0) / 1000;
+      g.clearRect(0, 0, W, H);
+      if (mode === "win") {
+        // rockets -> bursts for first 5s
+        if (t < 5 && now > nextRocket) {
+          nextRocket = now + 450;
+          rockets.push({ x: rnd(W * 0.15, W * 0.85), y: H, t0: now, c: colors[(Math.random() * colors.length) | 0] });
+        }
+        for (let i = rockets.length - 1; i >= 0; i--) {
+          const rk = rockets[i];
+          const p = (now - rk.t0) / 600;
+          if (p >= 1) {
+            rockets.splice(i, 1);
+            for (let j = 0; j < 60; j++) {
+              const a = rnd(0, Math.PI * 2), v = rnd(0.8, 4.2);
+              sparks.push({ x: rk.x, y: rk.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1.2, c: rk.c });
+            }
+            const glow = g.createRadialGradient(rk.x, rk.y, 0, rk.x, rk.y, 90);
+            glow.addColorStop(0, "rgba(255,240,180,0.35)");
+            glow.addColorStop(1, "rgba(255,240,180,0)");
+            g.fillStyle = glow;
+            g.fillRect(rk.x - 90, rk.y - 90, 180, 180);
+            if (window.GameAudio && GameAudio.firework) GameAudio.firework();
+            continue;
+          }
+          rk.y = H - (H * 0.55 + rnd(0, H * 0.25)) * p;
+          g.fillStyle = "#fff8d0";
+          g.fillRect(rk.x - 1.5, rk.y, 3, 3);
+          g.fillStyle = "rgba(255,240,180,0.4)";
+          g.fillRect(rk.x - 1, rk.y + 4, 2, 14 * p);
+        }
+        g.globalCompositeOperation = "lighter";
+        for (let i = sparks.length - 1; i >= 0; i--) {
+          const s = sparks[i];
+          s.life -= 1 / 60;
+          if (s.life <= 0) { sparks.splice(i, 1); continue; }
+          s.vx *= 0.985; s.vy = s.vy * 0.985 + 0.04;
+          s.x += s.vx; s.y += s.vy;
+          g.globalAlpha = Math.min(1, s.life);
+          g.fillStyle = s.c;
+          g.fillRect(s.x - 1.5, s.y - 1.5, 3, 3);
+        }
+        g.globalAlpha = 1;
+        g.globalCompositeOperation = "source-over";
+        for (const cf of confetti) {
+          cf.y += cf.vy;
+          cf.x += cf.vx + Math.sin(t * 3 + cf.ph) * 0.6;
+          cf.rot += cf.vr;
+          if (cf.y > H + 12) {
+            if (t < 5) { cf.y = -12; cf.x = rnd(0, W); }
+            else continue;
+          }
+          g.save();
+          g.translate(cf.x, cf.y);
+          g.rotate(cf.rot);
+          g.fillStyle = cf.c;
+          g.fillRect(-3, -5, 6, 10);
+          g.restore();
+        }
+      } else {
+        // rain
+        g.strokeStyle = "rgba(160,190,210,0.12)";
+        g.lineWidth = 1;
+        for (let i = 0; i < 90; i++) {
+          const x = (i * 97 + t * 60) % (W + 60) - 30;
+          const y = (i * 173 + t * 500) % H;
+          g.beginPath();
+          g.moveTo(x, y);
+          g.lineTo(x - 6, y + 16);
+          g.stroke();
+        }
+        // sinking ship silhouette
+        const p = Math.min(1, t / 6);
+        g.save();
+        g.translate(W / 2, H * 0.55 + p * 120);
+        g.rotate((p * 12 * Math.PI) / 180);
+        g.globalAlpha = Math.max(0, 1 - p * 0.9);
+        g.fillStyle = "rgba(15,20,25,0.9)";
+        g.beginPath();
+        g.moveTo(-130, 0);
+        g.lineTo(-120, 22);
+        g.lineTo(95, 22);
+        g.lineTo(130, -6);
+        g.lineTo(60, 0);
+        g.closePath();
+        g.fill();
+        g.fillRect(-40, -26, 60, 26);
+        g.fillRect(10, -40, 8, 40);
+        g.restore();
+        g.globalAlpha = 1;
+        // heavy smoke
+        for (const s of smoke) {
+          s.y -= s.vy; s.x += s.vx; s.r += s.grow;
+          if (s.y < H * 0.2 || s.r > 140) {
+            s.x = rnd(0, W); s.y = rnd(H * 0.7, H + 40);
+            s.r = rnd(18, 46);
+          }
+          const grad = g.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
+          grad.addColorStop(0, `rgba(50,50,55,${s.a})`);
+          grad.addColorStop(1, "rgba(50,50,55,0)");
+          g.fillStyle = grad;
+          g.beginPath();
+          g.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          g.fill();
+        }
+        // embers
+        for (const e of embers) {
+          e.y -= e.vy; e.x += e.vx + Math.sin(t * 2 + e.ph) * 0.4;
+          if (e.y < -6) { e.y = rnd(H * 0.6, H); e.x = rnd(0, W); }
+          g.globalAlpha = 0.5 + Math.sin(t * 8 + e.ph) * 0.4;
+          g.fillStyle = "#ff8c1a";
+          g.beginPath();
+          g.arc(e.x, e.y, e.s, 0, Math.PI * 2);
+          g.fill();
+        }
+        g.globalAlpha = 1;
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    timer = setTimeout(stop, 8000);
+  }
+
+  return { start, stop };
+})();
+
 function showGameOver() {
-  $("gameover").classList.remove("hidden");
-  $("gameover-text").textContent =
-    state.winner === "player"
-      ? "Victory! You sank the enemy fleet."
-      : "Defeat — your fleet was destroyed.";
+  const go = $("gameover");
+  go.classList.remove("hidden", "win", "lose");
+  const shots = state.ai.shots.length;
+  const hits = state.ai.shots.filter((s) => s[2] === "hit").length;
+  const acc = shots ? Math.round((hits / shots) * 100) : 0;
+  const stats = [
+    [shots, "shots fired"],
+    [hits, "hits"],
+    [acc + "%", "accuracy"],
+    [state.ai.sunk_ships.length + "/5", "enemy sunk"],
+    [state.player.ships.filter((s) => s.sunk).length + "/5", "ships lost"],
+  ];
+  $("gameover-stats").innerHTML = stats
+    .map(([v, l]) => `<li><b>${v}</b>${l}</li>`)
+    .join("");
+  if (state.winner === "player") playVictory();
+  else playDefeat();
+}
+
+function playVictory() {
+  $("gameover").classList.add("win");
+  $("gameover-kicker").textContent = "MISSION ACCOMPLISHED";
+  $("gameover-text").textContent = "VICTORY!";
+  $("gameover-sub").textContent = "You sank the entire enemy fleet.";
+  GameAudio.duckMusic(6);
+  GameAudio.victory();
+  FX.start("win");
+}
+
+function playDefeat() {
+  $("gameover").classList.add("lose");
+  $("gameover-kicker").textContent = "FLEET DESTROYED";
+  $("gameover-text").textContent = "DEFEAT";
+  $("gameover-sub").textContent = "Your fleet rests on the ocean floor.";
+  document.body.classList.add("defeated");
+  GameAudio.duckMusic(8);
+  GameAudio.defeat();
+  setTimeout(() => GameAudio.slam(), 500);
+  setTimeout(() => {
+    document.body.classList.remove("shake");
+    void document.body.offsetWidth;
+    document.body.classList.add("shake");
+    setTimeout(() => document.body.classList.remove("shake"), 350);
+  }, 900);
+  FX.start("lose");
 }
 
 function makeBoard(el) {
@@ -515,11 +756,7 @@ async function fire(row, col) {
   } catch (e) {
   } finally {
     busy = false;
-    if (state.phase === "over") {
-      if (state.winner === "player") GameAudio.victory();
-      else GameAudio.defeat();
-      showGameOver();
-    }
+    if (state.phase === "over") showGameOver();
   }
 }
 
