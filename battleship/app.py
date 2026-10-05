@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections import OrderedDict
 
 from flask import Flask, jsonify, request, send_from_directory
 
@@ -8,7 +9,15 @@ from .game import Game
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
-GAMES = {}
+GAMES = OrderedDict()
+MAX_GAMES = 500
+
+
+@app.errorhandler(404)
+def not_found(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Game not found"}), 404
+    return e
 
 
 def get_game(game_id: str) -> Game:
@@ -33,6 +42,8 @@ def create_game():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     game_id = uuid.uuid4().hex
+    if len(GAMES) >= MAX_GAMES:
+        GAMES.popitem(last=False)
     GAMES[game_id] = game
     return jsonify({"id": game_id, "state": game.to_state()})
 
@@ -62,6 +73,17 @@ def set_difficulty(game_id):
     body = request.get_json(force=True)
     try:
         game.set_difficulty(body["difficulty"])
+    except (ValueError, KeyError, TypeError) as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"state": game.to_state()})
+
+
+@app.route("/api/games/<game_id>/remove", methods=["POST"])
+def remove_ship(game_id):
+    game = get_game(game_id)
+    body = request.get_json(force=True)
+    try:
+        game.remove_player_ship(body["name"])
     except (ValueError, KeyError, TypeError) as e:
         return jsonify({"error": str(e)}), 400
     return jsonify({"state": game.to_state()})

@@ -133,6 +133,14 @@ class Game:
             raise ValueError("%s already placed" % name)
         self.player_board.place(name, size, row, col, horizontal)
 
+    def remove_player_ship(self, name: str) -> None:
+        if self.phase != "placement":
+            raise ValueError("Game already started")
+        ship = next((s for s in self.player_board.ships if s.name == name), None)
+        if ship is None:
+            raise ValueError("%s is not placed" % name)
+        self.player_board.ships.remove(ship)
+
     def randomize_player_board(self) -> None:
         if self.phase != "placement":
             raise ValueError("Game already started")

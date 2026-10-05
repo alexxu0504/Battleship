@@ -154,6 +154,7 @@ main { padding: 24px; }
 .board.clickable .cell:not(.hit):not(.miss):not(.sunk):hover { background: rgba(255, 255, 255, 0.35); }
 
 .cell.ship { background: rgba(255, 255, 255, 0.06); }
+#place-board .cell.ship { cursor: grab; }
 .cell.hit { background: rgba(229, 72, 77, 0.85); }
 .cell.sunk { background: rgba(140, 29, 33, 0.9); }
 

@@ -115,6 +115,19 @@ def test_set_difficulty():
         g.set_difficulty("medium")
 
 
+def test_remove_player_ship():
+    g = Game("easy", seed=8)
+    g.place_player_ship("Carrier", 0, 0, True)
+    g.remove_player_ship("Carrier")
+    assert len(g.player_board.ships) == 0
+    with pytest.raises(ValueError):
+        g.remove_player_ship("Carrier")
+    g.randomize_player_board()
+    g.start()
+    with pytest.raises(ValueError):
+        g.remove_player_ship("Carrier")
+
+
 def test_winner_set():
     g = Game("easy", seed=4)
     g.randomize_player_board()

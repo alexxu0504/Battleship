@@ -60,8 +60,39 @@ def test_difficulty_endpoint(client):
 
 
 def test_unknown_id(client):
-    assert client.get("/api/games/nope").status_code == 404
-    assert client.post("/api/games/nope/fire", json={"row": 0, "col": 0}).status_code == 404
+    res = client.get("/api/games/nope")
+    assert res.status_code == 404
+    assert res.get_json() == {"error": "Game not found"}
+    res = client.post("/api/games/nope/fire", json={"row": 0, "col": 0})
+    assert res.status_code == 404
+    assert res.get_json()["error"]
+
+
+def test_remove_ship_endpoint(client):
+    gid = client.post("/api/games", json={"difficulty": "easy"}).get_json()["id"]
+    res = client.post(
+        f"/api/games/{gid}/place",
+        json={"name": "Carrier", "row": 0, "col": 0, "horizontal": True},
+    )
+    assert res.status_code == 200
+    res = client.post(f"/api/games/{gid}/remove", json={"name": "Carrier"})
+    assert res.status_code == 200
+    assert res.get_json()["state"]["player"]["ships"] == []
+    res = client.post(f"/api/games/{gid}/remove", json={"name": "Carrier"})
+    assert res.status_code == 400
+
+
+def test_games_eviction(client, monkeypatch):
+    import battleship.app as app_module
+
+    monkeypatch.setattr(app_module, "MAX_GAMES", 3)
+    app_module.GAMES.clear()
+    ids = [
+        client.post("/api/games", json={"difficulty": "easy"}).get_json()["id"]
+        for _ in range(4)
+    ]
+    assert client.get(f"/api/games/{ids[0]}").status_code == 404
+    assert client.get(f"/api/games/{ids[3]}").status_code == 200
 
 
 def test_bad_place(client):

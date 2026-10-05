@@ -32,7 +32,10 @@ async function api(path, method = "GET", body = null) {
   const opts = { method, headers: { "Content-Type": "application/json" } };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(path, opts);
-  const data = await res.json();
+  let data = {};
+  try {
+    data = await res.json();
+  } catch (e) {}
   if (!res.ok) {
     $("status").textContent = data.error || "Error";
     throw new Error(data.error || res.statusText);
@@ -44,15 +47,19 @@ async function newGame() {
   document.body.classList.remove("defeated");
   $("gameover").classList.remove("win", "lose");
   FX.stop();
+  busy = false;
+  gameOverShown = false;
   const difficulty = $("difficulty").value;
   const data = await api("/api/games", "POST", { difficulty });
   gameId = data.id;
+  sessionStorage.setItem("battleship.gameId", gameId);
   state = data.state;
   selectedShip = SHIPS[0][0];
   horizontal = true;
   lastShots = { player: null, ai: null };
   const demo = new URLSearchParams(location.search).get("demo");
   if (demo === "win" || demo === "lose") {
+    history.replaceState(null, "", location.pathname);
     state = (await api(`/api/games/${gameId}/randomize`, "POST")).state;
     state = (await api(`/api/games/${gameId}/start`, "POST")).state;
     state = { ...state, phase: "over", winner: demo === "win" ? "player" : "ai" };
@@ -63,40 +70,62 @@ async function newGame() {
   render();
 }
 
+let gameOverShown = false;
+
 function render(opts = {}) {
-  $("gameover").classList.add("hidden");
-  $("difficulty").value = state.difficulty;
-  $("difficulty").disabled = state.phase === "playing";
-  $("difficulty").title =
-    state.phase === "playing" ? "Difficulty is locked during a battle" : "";
-  $("fleet-style").disabled = state.phase === "playing";
-  $("fleet-style").title =
-    state.phase === "playing" ? "Fleet style is locked during a battle" : "";
-  if (state.phase === "placement") {
-    $("placement").classList.remove("hidden");
-    $("battle").classList.add("hidden");
-    $("status").textContent = "Place your ships";
-    renderTray();
-    renderPlacementBoard();
-  } else {
-    $("placement").classList.add("hidden");
-    $("battle").classList.remove("hidden");
-    $("status").textContent =
-      state.phase === "over"
-        ? "Game over"
-        : "Your turn — click the enemy grid to fire";
-    renderPlayerBoard();
-    renderEnemyBoard();
-    renderFleetList($("player-fleet"), state.player.ships, state.player.shots, {
-      known: true,
-    });
-    renderFleetList($("enemy-fleet"), state.ai.ships, state.ai.shots, {
-      known: false,
-    });
-    renderLog();
-    if (state.phase === "over" && !opts.deferGameOver) {
-      showGameOver();
+  const prev = state;
+  if (opts.view) state = opts.view;
+  try {
+    if (!(state.phase === "over" && gameOverShown))
+      $("gameover").classList.add("hidden");
+    $("difficulty").value = state.difficulty;
+    $("difficulty").disabled = state.phase === "playing";
+    $("difficulty").title =
+      state.phase === "playing" ? "Difficulty is locked during a battle" : "";
+    $("fleet-style").disabled = state.phase === "playing";
+    $("fleet-style").title =
+      state.phase === "playing" ? "Fleet style is locked during a battle" : "";
+    if (state.phase === "placement") {
+      $("placement").classList.remove("hidden");
+      $("battle").classList.add("hidden");
+      if (state.player.ships.length === SHIPS.length) {
+        $("status").textContent =
+          "All ships placed — hit Start Battle (or Quick Battle)";
+      } else if (selectedShip) {
+        $("status").textContent = `Place your ${selectedShip} (${shipSize(
+          selectedShip
+        )}) — R to rotate`;
+      } else {
+        $("status").textContent = "Select a ship from the tray";
+      }
+      renderTray();
+      renderPlacementBoard();
+    } else {
+      $("placement").classList.add("hidden");
+      $("battle").classList.remove("hidden");
+      $("status").textContent =
+        state.phase === "over"
+          ? "Game over"
+          : "Your turn — click the enemy grid to fire";
+      renderPlayerBoard();
+      renderEnemyBoard();
+      renderFleetList($("player-fleet"), state.player.ships, state.player.shots, {
+        known: true,
+      });
+      renderFleetList($("enemy-fleet"), state.ai.ships, state.ai.shots, {
+        known: false,
+      });
+      renderLog();
+      if (
+        state.phase === "over" &&
+        !opts.deferGameOver &&
+        !gameOverShown
+      ) {
+        showGameOver();
+      }
     }
+  } finally {
+    state = prev;
   }
 }
 
@@ -289,9 +318,10 @@ const FX = (() => {
   return { start, stop };
 })();
 
-function showGameOver() {
+function showGameOver(opts = {}) {
   const go = $("gameover");
   go.classList.remove("hidden", "win", "lose");
+  gameOverShown = true;
   const shots = state.ai.shots.length;
   const hits = state.ai.shots.filter((s) => s[2] === "hit").length;
   const acc = shots ? Math.round((hits / shots) * 100) : 0;
@@ -310,25 +340,27 @@ function showGameOver() {
   $("gameover-stats").innerHTML = stats
     .map(([v, l]) => `<li><b>${v}</b>${l}</li>`)
     .join("");
-  if (state.winner === "player") playVictory();
+  const win = state.winner === "player";
+  $("gameover").classList.add(win ? "win" : "lose");
+  $("gameover-kicker").textContent = win
+    ? "MISSION ACCOMPLISHED"
+    : "FLEET DESTROYED";
+  $("gameover-text").textContent = win ? "VICTORY!" : "DEFEAT";
+  $("gameover-sub").textContent = win
+    ? "You sank the entire enemy fleet."
+    : "Your fleet rests on the ocean floor.";
+  if (opts.silent) return;
+  if (win) playVictory();
   else playDefeat();
 }
 
 function playVictory() {
-  $("gameover").classList.add("win");
-  $("gameover-kicker").textContent = "MISSION ACCOMPLISHED";
-  $("gameover-text").textContent = "VICTORY!";
-  $("gameover-sub").textContent = "You sank the entire enemy fleet.";
   GameAudio.duckMusic(6);
   GameAudio.victory();
   FX.start("win");
 }
 
 function playDefeat() {
-  $("gameover").classList.add("lose");
-  $("gameover-kicker").textContent = "FLEET DESTROYED";
-  $("gameover-text").textContent = "DEFEAT";
-  $("gameover-sub").textContent = "Your fleet rests on the ocean floor.";
   document.body.classList.add("defeated");
   GameAudio.duckMusic(8);
   GameAudio.defeat();
@@ -558,7 +590,9 @@ function renderTray() {
     div.appendChild(mini);
     div.appendChild(label);
     div.onclick = () => {
-      if (!placed.has(name)) {
+      if (placed.has(name)) {
+        pickupShip(name);
+      } else {
         selectedShip = name;
         renderTray();
       }
@@ -567,11 +601,6 @@ function renderTray() {
   }
   $("start").disabled = placed.size < SHIPS.length;
   $("rotate").textContent = `Rotate (R) — ${horizontal ? "Horizontal" : "Vertical"}`;
-}
-
-function ghostCells() {
-  if (!selectedShip) return null;
-  return hoverPos ? { size: shipSize(selectedShip), ...hoverPos } : null;
 }
 
 function shipSize(name) {
@@ -601,7 +630,13 @@ function renderPlacementBoard() {
         hoverPos = null;
         drawGhost();
       });
-      d.addEventListener("click", () => placeShip(r, c));
+      d.addEventListener("click", () => {
+        const ship = state.player.ships.find((s) =>
+          s.cells.some(([sr, sc]) => sr === r && sc === c)
+        );
+        if (ship) pickupShip(ship.name);
+        else placeShip(r, c);
+      });
     }
   }
 }
@@ -634,6 +669,7 @@ function drawGhost() {
 async function placeShip(row, col) {
   if (!selectedShip) return;
   if (state.player.ships.some((s) => s.name === selectedShip)) return;
+  const id = gameId;
   try {
     const data = await api(`/api/games/${gameId}/place`, "POST", {
       name: selectedShip,
@@ -641,6 +677,7 @@ async function placeShip(row, col) {
       col,
       horizontal,
     });
+    if (gameId !== id) return;
     GameAudio.init();
     GameAudio.click();
     state = data.state;
@@ -648,6 +685,22 @@ async function placeShip(row, col) {
       (n) => !state.player.ships.some((s) => s.name === n)
     );
     selectedShip = unplaced || null;
+    render();
+  } catch (e) {}
+}
+
+async function pickupShip(name) {
+  const ship = state.player.ships.find((s) => s.name === name);
+  if (!ship) return;
+  const id = gameId;
+  try {
+    const data = await api(`/api/games/${gameId}/remove`, "POST", { name });
+    if (gameId !== id) return;
+    GameAudio.init();
+    GameAudio.click();
+    state = data.state;
+    selectedShip = name;
+    horizontal = ship.cells.length < 2 || ship.cells[0][0] === ship.cells[1][0];
     render();
   } catch (e) {}
 }
@@ -902,20 +955,41 @@ function splashBurst(boardEl, r, c) {
 
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
+function withoutAiShot(st, as) {
+  const shots = st.player.shots.filter(
+    (s) => !(s[0] === as.row && s[1] === as.col)
+  );
+  const ships = st.player.ships.map((s) =>
+    as.sunk && s.name === as.sunk ? { ...s, sunk: false } : s
+  );
+  const log = st.log.slice();
+  while (log.length && log[log.length - 1].who === "ai") log.pop();
+  return {
+    ...st,
+    phase: "playing",
+    winner: null,
+    player: { ...st.player, shots, ships },
+    log,
+  };
+}
+
 async function fire(row, col) {
   if (busy || state.phase !== "playing") return;
   if (shotsMap(state.ai.shots)[`${row},${col}`]) return;
   busy = true;
+  const id = gameId;
   try {
     GameAudio.init();
     const [data] = await Promise.all([
       api(`/api/games/${gameId}/fire`, "POST", { row, col }),
       airstrike($("enemy-board"), row, col, "player"),
     ]);
+    if (gameId !== id) return;
     state = data.state;
     const ps = data.turn.player_shot;
+    const as = data.turn.ai_shot;
     lastShots.player = [ps.row, ps.col];
-    render({ deferGameOver: true });
+    render({ deferGameOver: true, view: as ? withoutAiShot(state, as) : state });
 
     if (ps.result === "hit") {
       boom($("enemy-board"), ps.row, ps.col, !!ps.sunk);
@@ -926,22 +1000,15 @@ async function fire(row, col) {
       GameAudio.splash();
     }
 
-    const as = data.turn.ai_shot;
     if (as) {
       await sleep(350);
-      const pCell = cellAt($("player-board"), as.row, as.col);
-      const hidden = ["hit", "miss", "sunk"].filter((cl) =>
-        pCell.classList.contains(cl)
-      );
-      pCell.classList.remove("hit", "miss", "sunk");
-      const fireEl = pCell.querySelector(".fire");
-      if (fireEl) fireEl.remove();
+      if (gameId !== id) return;
       await airstrike($("player-board"), as.row, as.col, "ai");
-      pCell.classList.add(...hidden);
+      if (gameId !== id) return;
+      render({ deferGameOver: true });
       lastShots.ai = [as.row, as.col];
       markLastShot($("player-board"), as.row, as.col);
       if (as.result === "hit") {
-        addFire(pCell, !!as.sunk);
         boom($("player-board"), as.row, as.col, !!as.sunk);
         if (as.sunk) GameAudio.sunk();
         else GameAudio.explosion();
@@ -953,7 +1020,7 @@ async function fire(row, col) {
   } catch (e) {
   } finally {
     busy = false;
-    if (state.phase === "over") showGameOver();
+    if (state.phase === "over" && !gameOverShown) showGameOver();
   }
 }
 
@@ -1035,12 +1102,14 @@ function renderLog() {
 
 $("difficulty").addEventListener("change", async (e) => {
   if (state.phase === "placement") {
+    const id = gameId;
     try {
       state = (
         await api(`/api/games/${gameId}/difficulty`, "POST", {
           difficulty: e.target.value,
         })
       ).state;
+      if (gameId !== id) return;
       render();
     } catch (err) {}
   }
@@ -1087,8 +1156,11 @@ async function quickBattle() {
   try {
     GameAudio.init();
     GameAudio.click();
+    const id = gameId;
     state = (await api(`/api/games/${gameId}/randomize`, "POST")).state;
+    if (gameId !== id) return;
     state = (await api(`/api/games/${gameId}/start`, "POST")).state;
+    if (gameId !== id) return;
     selectedShip = null;
     render();
   } catch (e) {
@@ -1107,7 +1179,9 @@ $("play-again-quick").onclick = async () => {
 $("randomize").onclick = async () => {
   GameAudio.init();
   GameAudio.click();
+  const id = gameId;
   const data = await api(`/api/games/${gameId}/randomize`, "POST");
+  if (gameId !== id) return;
   state = data.state;
   selectedShip = null;
   render();
@@ -1115,7 +1189,9 @@ $("randomize").onclick = async () => {
 $("start").onclick = async () => {
   GameAudio.init();
   GameAudio.click();
+  const id = gameId;
   const data = await api(`/api/games/${gameId}/start`, "POST");
+  if (gameId !== id) return;
   state = data.state;
   render();
 };
@@ -1140,4 +1216,21 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-newGame();
+(async function boot() {
+  const savedId = sessionStorage.getItem("battleship.gameId");
+  if (savedId && !new URLSearchParams(location.search).get("demo")) {
+    try {
+      const data = await api(`/api/games/${savedId}`);
+      gameId = savedId;
+      state = data.state;
+      selectedShip = null;
+      render();
+      if (state.phase === "over" && !gameOverShown)
+        showGameOver({ silent: true });
+      return;
+    } catch (e) {
+      sessionStorage.removeItem("battleship.gameId");
+    }
+  }
+  newGame();
+})();
