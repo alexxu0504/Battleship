@@ -1059,6 +1059,31 @@ $("play-again").onclick = () => {
   GameAudio.init();
   newGame();
 };
+let quickBusy = false;
+async function quickBattle() {
+  if (quickBusy) return;
+  quickBusy = true;
+  $("quick-battle").disabled = true;
+  try {
+    GameAudio.init();
+    GameAudio.click();
+    state = (await api(`/api/games/${gameId}/randomize`, "POST")).state;
+    state = (await api(`/api/games/${gameId}/start`, "POST")).state;
+    selectedShip = null;
+    render();
+  } catch (e) {
+  } finally {
+    quickBusy = false;
+    $("quick-battle").disabled = false;
+  }
+}
+
+$("quick-battle").onclick = quickBattle;
+$("play-again-quick").onclick = async () => {
+  await newGame();
+  await quickBattle();
+};
+
 $("randomize").onclick = async () => {
   GameAudio.init();
   GameAudio.click();

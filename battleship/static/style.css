@@ -55,7 +55,17 @@ footer {
 }
 footer a { color: #0f2e2d; text-decoration: underline; }
 
+button.primary {
+  background: #036c69;
+  color: #fff;
+  border-color: #036c69;
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) { background: #04807c; }
+
 button:hover:not(:disabled) { background: #ffffff; }
+
+.banner-buttons { display: flex; gap: 10px; justify-content: center; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 main { padding: 24px; }
