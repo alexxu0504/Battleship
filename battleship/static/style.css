@@ -111,6 +111,49 @@ main { padding: 24px; }
 .cell.ghost-valid { background: #4caf50 !important; }
 .cell.ghost-invalid { background: #e53935 !important; }
 
+/* Airstrike */
+.sky-layer {
+  position: absolute;
+  inset: -60px;
+  pointer-events: none;
+  z-index: 4;
+  overflow: visible;
+}
+
+.plane {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 4;
+}
+
+.plane .prop {
+  animation: spin 0.08s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.plane-shadow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 56px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.25);
+  filter: blur(3px);
+  z-index: 3;
+}
+
+.dbomb {
+  position: absolute;
+  z-index: 4;
+}
+
 /* Bomb drop */
 .bomb {
   position: absolute;

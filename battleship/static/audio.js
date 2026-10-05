@@ -373,6 +373,46 @@ const GameAudio = (() => {
     return osc;
   }
 
+  function planePass(dir = 1, duration = 1.1) {
+    if (!ctx || muted) return;
+    const t = ctx.currentTime;
+    const f = ctx.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.setValueAtTime(700, t);
+    f.frequency.linearRampToValueAtTime(1200, t + duration * 0.45);
+    f.frequency.linearRampToValueAtTime(600, t + duration);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.14, t + duration * 0.45);
+    g.gain.linearRampToValueAtTime(0, t + duration);
+    for (const fr of [110, 112]) {
+      const o = ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = fr;
+      o.connect(f);
+      o.start(t);
+      o.stop(t + duration);
+    }
+    f.connect(g);
+    let out = g;
+    if (ctx.createStereoPanner) {
+      const p = ctx.createStereoPanner();
+      p.pan.setValueAtTime(-dir, t);
+      p.pan.linearRampToValueAtTime(dir, t + duration);
+      g.connect(p);
+      out = p;
+    }
+    out.connect(sfxGain);
+    playNoise({
+      duration,
+      filterType: "bandpass",
+      freqStart: 400,
+      gainPeak: 0.05,
+      attack: 0.2,
+      decay: duration,
+    });
+  }
+
   function bombWhistle(duration = 0.5) {
     if (!ctx || muted) return;
     const t = ctx.currentTime;
@@ -571,6 +611,7 @@ const GameAudio = (() => {
     firework,
     slam,
     bombWhistle,
+    planePass,
     explosion,
     splash,
     sunk,

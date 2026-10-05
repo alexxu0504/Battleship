@@ -327,6 +327,9 @@ function makeBoard(el) {
   const layer = document.createElement("div");
   layer.className = "ship-layer";
   el.appendChild(layer);
+  const sky = document.createElement("div");
+  sky.className = "sky-layer";
+  el.appendChild(sky);
   return cells;
 }
 
@@ -643,14 +646,122 @@ function renderEnemyBoard() {
   }
 }
 
-function dropBomb(cell) {
+function planeSVG(dir) {
+  const enemy = dir === -1;
+  const body = enemy ? "#6b6b6b" : "#5b6b3a";
+  const dark = enemy ? "#444444" : "#3f4a28";
+  const marks = enemy
+    ? `<path d="M19 4 h6 M22 1.5 v8 M19 16 h6 M22 13.5 v8" stroke="#111" stroke-width="1.4"/>`
+    : `<g><circle cx="22" cy="5.5" r="3" fill="#1c4587"/><circle cx="22" cy="5.5" r="1.9" fill="#fff"/><circle cx="22" cy="5.5" r="0.9" fill="#c0392b"/></g><g><circle cx="22" cy="22.5" r="3" fill="#1c4587"/><circle cx="22" cy="22.5" r="1.9" fill="#fff"/><circle cx="22" cy="22.5" r="0.9" fill="#c0392b"/></g>`;
+  return `<svg width="68" height="28" viewBox="0 0 68 28"${enemy ? ' style="transform:scaleX(-1)"' : ""}>
+    <path d="M34 1 L16 10 L16 18 L34 27 Z" fill="${body}" stroke="${dark}"/>
+    <path d="M10 8 L3 11 L3 17 L10 20 Z" fill="${body}" stroke="${dark}"/>
+    <path d="M6 10.5 L50 10.5 Q60 14 50 17.5 L6 17.5 Z" fill="${body}" stroke="${dark}"/>
+    <ellipse cx="38" cy="14" rx="5" ry="3" fill="#9fd3e6" stroke="${dark}"/>
+    <rect x="30" y="12.5" width="5" height="3" fill="${dark}"/>
+    ${marks}
+    <rect x="57" y="12.3" width="3.5" height="3.4" fill="${dark}"/>
+    <g class="prop">
+      <circle cx="62.5" cy="14" r="7" fill="rgba(255,255,255,0.15)"/>
+      <line x1="62.5" y1="7.5" x2="62.5" y2="20.5" stroke="rgba(40,40,40,0.7)" stroke-width="1"/>
+      <line x1="56.5" y1="11" x2="68.5" y2="17" stroke="rgba(40,40,40,0.7)" stroke-width="1"/>
+      <line x1="56.5" y1="17" x2="68.5" y2="11" stroke="rgba(40,40,40,0.7)" stroke-width="1"/>
+    </g>
+  </svg>`;
+}
+
+function bombEl() {
+  const d = document.createElement("div");
+  d.className = "dbomb";
+  d.innerHTML = `<svg width="10" height="18" viewBox="0 0 10 18">
+    <path d="M5 1 Q8.5 1 8.5 7 L8.5 12 Q8.5 15 5 15 Q1.5 15 1.5 12 L1.5 7 Q1.5 1 5 1 Z" fill="#111"/>
+    <path d="M2.4 14.5 L0.2 18 L3.6 16.4 Z M7.6 14.5 L9.8 18 L6.4 16.4 Z M4.6 15 L5 18 L5.4 15 Z" fill="#333"/>
+  </svg>`;
+  return d;
+}
+
+function airstrike(boardEl, row, col, dir) {
   return new Promise((resolve) => {
-    const bomb = document.createElement("div");
-    bomb.className = "bomb";
-    cell.appendChild(bomb);
-    const done = () => resolve(bomb);
-    bomb.addEventListener("animationend", done, { once: true });
-    setTimeout(done, 600);
+    const sky = boardEl.querySelector(".sky-layer");
+    const OFF = 60; // sky-layer inset
+    const cx = col * 36 + 17 + OFF;
+    const cy = row * 36 + 17 + OFF;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const finish = (bomb, delay) => {
+      let done = false;
+      const fin = () => {
+        if (done) return;
+        done = true;
+        bomb.remove();
+        resolve();
+      };
+      setTimeout(fin, delay);
+      return fin;
+    };
+    if (reduced) {
+      const bomb = bombEl();
+      bomb.style.left = cx - 5 + "px";
+      bomb.style.top = cy - 40 + "px";
+      sky.appendChild(bomb);
+      const anim = bomb.animate(
+        [{ transform: "translateY(0)" }, { transform: "translateY(40px)" }],
+        { duration: 250, easing: "cubic-bezier(.4,0,.8,1)", fill: "forwards" }
+      );
+      const fin = finish(bomb, 400);
+      anim.onfinish = fin;
+      return;
+    }
+    const startX = (dir === 1 ? -80 : 358 + 80) + OFF;
+    const endX = (dir === 1 ? 358 + 80 : -80) + OFF;
+    const planeY = cy - 14;
+    const dur = 1100;
+    const tRelease = Math.abs((cx - startX) / (endX - startX)) * dur;
+    const plane = document.createElement("div");
+    plane.className = "plane" + (dir === -1 ? " enemy" : "");
+    plane.innerHTML = planeSVG(dir);
+    const shadow = document.createElement("div");
+    shadow.className = "plane-shadow";
+    sky.appendChild(shadow);
+    sky.appendChild(plane);
+    const easing = "cubic-bezier(.35,.05,.65,.95)";
+    const pAnim = plane.animate(
+      [
+        { transform: `translate(${startX}px, ${planeY}px)` },
+        { transform: `translate(${endX}px, ${planeY}px)` },
+      ],
+      { duration: dur, easing, fill: "forwards" }
+    );
+    shadow.animate(
+      [
+        { transform: `translate(${startX + 10}px, ${planeY + 28}px)` },
+        { transform: `translate(${endX + 10}px, ${planeY + 28}px)` },
+      ],
+      { duration: dur, easing, fill: "forwards" }
+    );
+    pAnim.onfinish = () => {
+      plane.remove();
+      shadow.remove();
+    };
+    GameAudio.planePass(dir);
+    setTimeout(() => {
+      const bomb = bombEl();
+      const bombStartY = planeY + 10;
+      bomb.style.left = cx - 5 + "px";
+      bomb.style.top = bombStartY + "px";
+      sky.appendChild(bomb);
+      GameAudio.bombWhistle(0.45);
+      const anim = bomb.animate(
+        [
+          { transform: "translate(0, 0) scale(1.1) rotate(0deg)" },
+          {
+            transform: `translate(${dir * 12}px, ${cy - bombStartY}px) scale(0.6) rotate(${dir * 25}deg)`,
+          },
+        ],
+        { duration: 450, easing: "cubic-bezier(.4,0,.8,1)", fill: "forwards" }
+      );
+      const fin = finish(bomb, 600);
+      anim.onfinish = fin;
+    }, tRelease);
   });
 }
 
@@ -708,14 +819,11 @@ async function fire(row, col) {
   if (shotsMap(state.ai.shots)[`${row},${col}`]) return;
   busy = true;
   try {
-    const enemyCell = cellAt($("enemy-board"), row, col);
     GameAudio.init();
-    GameAudio.bombWhistle(0.5);
     const [data] = await Promise.all([
       api(`/api/games/${gameId}/fire`, "POST", { row, col }),
-      dropBomb(enemyCell),
+      airstrike($("enemy-board"), row, col, 1),
     ]);
-    enemyCell.querySelectorAll(".bomb").forEach((b) => b.remove());
     state = data.state;
     render({ deferGameOver: true });
 
@@ -739,9 +847,7 @@ async function fire(row, col) {
       pCell.classList.remove("hit", "miss", "sunk");
       const fireEl = pCell.querySelector(".fire");
       if (fireEl) fireEl.remove();
-      GameAudio.bombWhistle(0.5);
-      const bomb = await dropBomb(pCell);
-      bomb.remove();
+      await airstrike($("player-board"), as.row, as.col, -1);
       pCell.classList.add(...hidden);
       if (as.result === "hit") {
         addFire(pCell, !!as.sunk);
