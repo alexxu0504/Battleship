@@ -421,7 +421,7 @@ function milShipSVG(name, size, W) {
   return p.join("");
 }
 
-function pirateShipSVG(name, size, W) {
+function pirateShipSVG(name, size, W, sunk) {
   const p = [];
   const narrow = name === "Submarine";
   const t = narrow ? 10 : 6, b = narrow ? 24 : 29;
@@ -441,10 +441,10 @@ function pirateShipSVG(name, size, W) {
     const mx = Math.round(W * (masts === 1 ? 0.5 : 0.22 + (0.56 * i) / (masts - 1)));
     p.push(`<line x1="${mx}" y1="4" x2="${mx}" y2="26" stroke="#3a2412" stroke-width="2"/>`);
     if (!narrow) {
-      p.push(`<path d="M${mx - 7} 8 Q${mx} 10 ${mx + 7} 8 L${mx + 6} 16 Q${mx} 18 ${mx - 6} 16 Z" fill="#f3ead8" stroke="#c9a26b"/>`);
+      p.push(`<path class="sail" d="M${mx - 7} 8 Q${mx} 10 ${mx + 7} 8 L${mx + 6} 16 Q${mx} 18 ${mx - 6} 16 Z" fill="#f3ead8" stroke="#c9a26b"/>`);
       p.push(`<circle cx="${mx}" cy="6" r="2.2" fill="#3a2412"/>`);
     }
-    if (i === masts - 1) {
+    if (i === masts - 1 && !sunk) {
       p.push(`<path d="M${mx} 3 L${mx + 10} 6 L${mx} 9 Z" fill="#111"/>`);
       p.push(`<circle cx="${mx + 4}" cy="5.7" r="1.6" fill="#f3ead8"/><circle cx="${mx + 3.4}" cy="5.3" r="0.4" fill="#111"/><circle cx="${mx + 4.7}" cy="5.3" r="0.4" fill="#111"/>`);
     }
@@ -458,12 +458,21 @@ const WAKE_SVG = `<g class="wake">
     <ellipse cx="-6" cy="25" rx="7" ry="1.6" fill="rgba(255,255,255,.5)"/>
   </g>`;
 
-function shipSVG(style, name, size, W, wake) {
+function shipSVG(style, name, size, W, { wake = false, sunk = false } = {}) {
   const inner =
     style === "pirate"
-      ? pirateShipSVG(name, size, W)
+      ? pirateShipSVG(name, size, W, sunk)
       : milShipSVG(name, size, W);
-  return inner + (wake ? WAKE_SVG : "");
+  let scorch = "";
+  if (sunk) {
+    scorch = `<g class="scorch">
+      <ellipse cx="${W * 0.25}" cy="17" rx="9" ry="5" fill="rgba(10,10,10,.55)" transform="rotate(-12 ${W * 0.25} 17)"/>
+      <ellipse cx="${W * 0.5}" cy="12" rx="7" ry="4" fill="rgba(10,10,10,.55)" transform="rotate(8 ${W * 0.5} 12)"/>
+      <ellipse cx="${W * 0.75}" cy="22" rx="10" ry="6" fill="rgba(10,10,10,.55)" transform="rotate(-6 ${W * 0.75} 22)"/>
+      <path d="M${W * 0.45} 8 l3 6 l-4 5 l5 7" stroke="#111" stroke-width="1.2" fill="none"/>
+    </g>`;
+  }
+  return inner + scorch + (wake ? WAKE_SVG : "");
 }
 
 function renderShips(boardEl, ships) {
@@ -503,7 +512,10 @@ function renderShips(boardEl, ships) {
       svg.style.transform = s.sunk ? "rotate(90deg) rotate(4deg)" : "rotate(90deg)";
     else if (s.sunk) svg.style.transform = "rotate(4deg)";
     svg.style.transformOrigin = "17px 17px";
-    svg.innerHTML = shipSVG(fleetStyle, s.name, s.size, W, !s.sunk);
+    svg.innerHTML = shipSVG(fleetStyle, s.name, s.size, W, {
+      wake: !s.sunk,
+      sunk: s.sunk,
+    });
     wrap.appendChild(svg);
     layer.appendChild(wrap);
   }
@@ -933,14 +945,17 @@ async function fire(row, col) {
   }
 }
 
-function miniSprite(name, size, w, h) {
+function miniSprite(name, size, w, h, opts) {
   const mini = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   const vW = size * 36 - 2;
-  mini.setAttribute("class", `ship-sprite ${fleetStyle}`);
+  mini.setAttribute(
+    "class",
+    `ship-sprite ${fleetStyle}${opts && opts.sunk ? " sunk" : ""}`
+  );
   mini.setAttribute("viewBox", `0 0 ${vW} 34`);
   mini.setAttribute("width", w);
   mini.setAttribute("height", h);
-  mini.innerHTML = shipSVG(fleetStyle, name, size, vW);
+  mini.innerHTML = shipSVG(fleetStyle, name, size, vW, opts || {});
   return mini;
 }
 
@@ -967,7 +982,7 @@ function renderFleetList(ul, ships, shots, { known }) {
     const canDamage = (known || cellsKnown) && !sunk && hits > 0;
     const li = document.createElement("li");
     li.className = "fleet-row" + (sunk ? " sunk" : canDamage ? " damaged" : "");
-    li.appendChild(miniSprite(name, size, size * 14, 13));
+    li.appendChild(miniSprite(name, size, size * 14, 13, { sunk }));
     const nm = document.createElement("span");
     nm.className = "fleet-name";
     nm.textContent = name;

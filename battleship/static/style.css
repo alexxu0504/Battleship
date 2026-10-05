@@ -302,7 +302,10 @@ main { padding: 24px; }
   filter: drop-shadow(0 1px 1px rgba(15, 46, 45, 0.35));
 }
 
-.ship-sprite.sunk { filter: grayscale(0.7) brightness(0.55); }
+.ship-sprite.sunk {
+  filter: brightness(0.6) saturate(0.85) contrast(1.1) sepia(0.15);
+}
+.ship-sprite.sunk .sail { fill: #6b6b6b; }
 
 .ship-bob {
   position: absolute;
@@ -630,7 +633,9 @@ body.shake { animation: shake 0.35s; }
   border-color: #b23a3a;
 }
 .fleet-row.sunk .fleet-name { text-decoration: line-through; color: #8c1d21; }
-.fleet-row.sunk .ship-sprite { filter: grayscale(0.7) brightness(0.6); }
+.fleet-row.sunk .ship-sprite {
+  filter: brightness(0.6) saturate(0.85) contrast(1.1) sepia(0.15);
+}
 .fleet-row.damaged .fleet-state { color: #b26a00; }
 .fleet-row.sunk .fleet-state { color: #8c1d21; font-weight: 600; }
 
