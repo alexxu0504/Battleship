@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Battleship</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Battleship</h1>
+  <div class="controls">
+    <label for="difficulty">Difficulty</label>
+    <select id="difficulty">
+      <option value="easy">Easy</option>
+      <option value="medium" selected>Medium</option>
+      <option value="hard">Hard</option>
+    </select>
+    <button id="new-game">New Game</button>
+  </div>
+  <p id="status"></p>
+</header>
+
+<main>
+  <section id="placement" class="hidden">
+    <div class="board-wrap">
+      <h2>Your Fleet</h2>
+      <div id="place-board" class="board"></div>
+    </div>
+    <div class="tray-wrap">
+      <h2>Ship Tray</h2>
+      <div id="tray"></div>
+      <div class="tray-buttons">
+        <button id="rotate">Rotate (R)</button>
+        <button id="randomize">Randomize</button>
+        <button id="start" disabled>Start Battle</button>
+      </div>
+      <p class="hint">Select a ship, hover the grid to preview, click to place.</p>
+    </div>
+  </section>
+
+  <section id="battle" class="hidden">
+    <div class="board-wrap">
+      <h2>Your Fleet</h2>
+      <div id="player-board" class="board"></div>
+    </div>
+    <div class="board-wrap">
+      <h2>Enemy Waters</h2>
+      <div id="enemy-board" class="board"></div>
+      <h3>Enemy Fleet</h3>
+      <ul id="enemy-fleet"></ul>
+    </div>
+    <div class="log-wrap">
+      <h2>Event Log</h2>
+      <div id="log"></div>
+    </div>
+  </section>
+</main>
+
+<div id="gameover" class="hidden">
+  <div class="banner">
+    <h2 id="gameover-text"></h2>
+    <button id="play-again">Play Again</button>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

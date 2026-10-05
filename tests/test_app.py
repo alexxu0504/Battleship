@@ -1,0 +1,62 @@
+import pytest
+
+from battleship.app import app
+
+
+@pytest.fixture
+def client():
+    app.config["TESTING"] = True
+    return app.test_client()
+
+
+def test_full_flow(client):
+    res = client.post("/api/games", json={"difficulty": "easy"})
+    assert res.status_code == 200
+    data = res.get_json()
+    gid = data["id"]
+    assert data["state"]["phase"] == "placement"
+
+    res = client.post(f"/api/games/{gid}/randomize")
+    assert res.status_code == 200
+    assert len(res.get_json()["state"]["player"]["ships"]) == 5
+
+    res = client.post(f"/api/games/{gid}/start")
+    assert res.status_code == 200
+    assert res.get_json()["state"]["phase"] == "playing"
+
+    res = client.post(f"/api/games/{gid}/fire", json={"row": 0, "col": 0})
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["turn"]["player_shot"]["result"] in ("hit", "miss")
+    assert data["turn"]["ai_shot"] is not None
+
+    res = client.get(f"/api/games/{gid}")
+    assert res.status_code == 200
+    assert res.get_json()["state"]["phase"] == "playing"
+
+
+def test_fire_before_start(client):
+    gid = client.post("/api/games", json={"difficulty": "medium"}).get_json()["id"]
+    res = client.post(f"/api/games/{gid}/fire", json={"row": 0, "col": 0})
+    assert res.status_code == 400
+    assert "error" in res.get_json()
+
+
+def test_start_before_placement(client):
+    gid = client.post("/api/games", json={"difficulty": "medium"}).get_json()["id"]
+    res = client.post(f"/api/games/{gid}/start")
+    assert res.status_code == 400
+
+
+def test_unknown_id(client):
+    assert client.get("/api/games/nope").status_code == 404
+    assert client.post("/api/games/nope/fire", json={"row": 0, "col": 0}).status_code == 404
+
+
+def test_bad_place(client):
+    gid = client.post("/api/games", json={"difficulty": "medium"}).get_json()["id"]
+    res = client.post(
+        f"/api/games/{gid}/place",
+        json={"name": "Carrier", "row": 0, "col": 9, "horizontal": True},
+    )
+    assert res.status_code == 400
