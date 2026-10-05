@@ -188,9 +188,8 @@ class Game:
             "shots": shots_list(self.ai_board),
             "sunk_ships": [s.name for s in self.ai_board.ships if s.is_sunk],
             "remaining": len(self.ai_board.remaining_ships),
+            "ships": [ship_dict(s) for s in self.ai_board.ships if reveal or s.is_sunk],
         }
-        if reveal:
-            ai_state["ships"] = [ship_dict(s) for s in self.ai_board.ships]
         return {
             "phase": self.phase,
             "difficulty": self.difficulty,

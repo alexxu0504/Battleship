@@ -161,7 +161,16 @@ const GameAudio = (() => {
       attack: 0.005,
       decay: 0.6,
     });
-    tone({ type: "sine", freqStart: 90, freqEnd: 35, duration: 0.4, gainPeak: 0.6 });
+    playNoise({
+      duration: 0.9,
+      filterType: "lowpass",
+      freqStart: 200,
+      freqEnd: 30,
+      gainPeak: 0.7,
+      attack: 0.005,
+      decay: 0.9,
+    });
+    tone({ type: "sine", freqStart: 110, freqEnd: 30, duration: 0.5, gainPeak: 0.8 });
   }
 
   function splash() {

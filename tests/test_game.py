@@ -112,7 +112,7 @@ def test_winner_set():
 def test_to_state_reveal():
     g = Game("medium", seed=5)
     state = g.to_state()
-    assert "ships" not in state["ai"]
+    assert state["ai"]["ships"] == []
     state = g.to_state(reveal_ai=True)
     assert len(state["ai"]["ships"]) == 5
     g.randomize_player_board()
@@ -122,6 +122,9 @@ def test_to_state_reveal():
             for c in range(BOARD_SIZE):
                 if g.phase == "playing" and (r, c) not in g.ai_board.shots:
                     g.player_fire(r, c)
+                if g.phase == "playing" and g.to_state()["ai"]["sunk_ships"]:
+                    st = g.to_state()
+                    assert all(s["sunk"] for s in st["ai"]["ships"])
     st = g.to_state()
-    assert "ships" in st["ai"]
+    assert len(st["ai"]["ships"]) == 5
     assert st["winner"] is not None
