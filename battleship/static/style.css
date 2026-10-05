@@ -78,7 +78,7 @@ main { padding: 24px; }
 }
 
 .board.clickable .cell { cursor: crosshair; }
-.board.clickable .cell:hover { background: #ffffff; }
+.board.clickable .cell:not(.hit):not(.miss):not(.sunk):hover { background: #ffffff; }
 
 .cell.ship { background: #1f6f6c; }
 .cell.hit { background: #e5484d; }
