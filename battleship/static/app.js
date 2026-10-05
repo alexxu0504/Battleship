@@ -207,6 +207,8 @@ async function placeShip(row, col) {
       col,
       horizontal,
     });
+    GameAudio.init();
+    GameAudio.click();
     state = data.state;
     const unplaced = SHIPS.map(([n]) => n).find(
       (n) => !state.player.ships.some((s) => s.name === n)
@@ -299,6 +301,8 @@ async function fire(row, col) {
   busy = true;
   try {
     const enemyCell = cellAt($("enemy-board"), row, col);
+    GameAudio.init();
+    GameAudio.bombWhistle(0.5);
     const [data] = await Promise.all([
       api(`/api/games/${gameId}/fire`, "POST", { row, col }),
       dropBomb(enemyCell),
@@ -309,6 +313,9 @@ async function fire(row, col) {
 
     const ps = data.turn.player_shot;
     impact($("enemy-board"), ps.row, ps.col, ps.result);
+    if (ps.sunk) GameAudio.sunk();
+    else if (ps.result === "hit") GameAudio.explosion();
+    else GameAudio.splash();
 
     const as = data.turn.ai_shot;
     if (as) {
@@ -318,15 +325,23 @@ async function fire(row, col) {
         pCell.classList.contains(cl)
       );
       pCell.classList.remove("hit", "miss", "sunk");
+      GameAudio.bombWhistle(0.5);
       const bomb = await dropBomb(pCell);
       bomb.remove();
       pCell.classList.add(...hidden);
       impact($("player-board"), as.row, as.col, as.result);
+      if (as.sunk) GameAudio.sunk();
+      else if (as.result === "hit") GameAudio.explosion();
+      else GameAudio.splash();
     }
   } catch (e) {
   } finally {
     busy = false;
-    if (state.phase === "over") showGameOver();
+    if (state.phase === "over") {
+      if (state.winner === "player") GameAudio.victory();
+      else GameAudio.defeat();
+      showGameOver();
+    }
   }
 }
 
@@ -348,24 +363,51 @@ function renderLog() {
   log.scrollTop = log.scrollHeight;
 }
 
-$("new-game").onclick = newGame;
-$("play-again").onclick = newGame;
+function updateMuteIcon() {
+  $("mute").textContent = GameAudio.isMuted() ? "🔇" : "🔊";
+}
+
+$("mute").onclick = () => {
+  GameAudio.init();
+  GameAudio.toggleMute();
+  updateMuteIcon();
+};
+
+$("new-game").onclick = () => {
+  GameAudio.init();
+  newGame();
+};
+$("play-again").onclick = () => {
+  GameAudio.init();
+  newGame();
+};
 $("randomize").onclick = async () => {
+  GameAudio.init();
+  GameAudio.click();
   const data = await api(`/api/games/${gameId}/randomize`, "POST");
   state = data.state;
   selectedShip = null;
   render();
 };
 $("start").onclick = async () => {
+  GameAudio.init();
+  GameAudio.click();
   const data = await api(`/api/games/${gameId}/start`, "POST");
   state = data.state;
   render();
 };
 $("rotate").onclick = () => {
+  GameAudio.init();
+  GameAudio.click();
   horizontal = !horizontal;
   renderTray();
   drawGhost();
 };
+
+document.addEventListener("pointerdown", () => GameAudio.init(), {
+  once: true,
+});
+updateMuteIcon();
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "r" || e.key === "R") {

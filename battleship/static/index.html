@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <title>Battleship</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -17,6 +18,7 @@
       <option value="hard">Hard</option>
     </select>
     <button id="new-game">New Game</button>
+    <button id="mute" title="Toggle sound">🔊</button>
   </div>
   <p id="status"></p>
 </header>
@@ -64,6 +66,7 @@
   </div>
 </div>
 
+<script src="/static/audio.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>
