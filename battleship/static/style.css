@@ -70,7 +70,12 @@ button:hover:not(:disabled) { background: #1b4063; }
 .banner-buttons { display: flex; gap: 10px; justify-content: center; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 
-main { padding: 24px; overflow: clip; }
+main {
+  padding: 24px;
+  overflow: clip;
+  max-width: 1320px;
+  margin: 0 auto;
+}
 html, body { overflow-x: hidden; }
 
 .hidden { display: none !important; }
@@ -80,7 +85,10 @@ html, body { overflow-x: hidden; }
   gap: 40px;
   flex-wrap: wrap;
   align-items: flex-start;
+  justify-content: center;
 }
+
+footer { text-align: center; }
 
 .board-wrap { margin-bottom: 6px; }
 
