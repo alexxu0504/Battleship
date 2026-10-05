@@ -332,6 +332,9 @@ function playDefeat() {
 
 function makeBoard(el) {
   el.innerHTML = "";
+  const water = document.createElement("div");
+  water.className = "water";
+  el.appendChild(water);
   const cells = [];
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
@@ -353,7 +356,7 @@ function makeBoard(el) {
 }
 
 function cellAt(el, r, c) {
-  return el.children[r * SIZE + c];
+  return el.querySelectorAll(".cell")[r * SIZE + c];
 }
 
 let fleetStyle = localStorage.getItem("battleship.fleet") || "military";
@@ -449,8 +452,18 @@ function pirateShipSVG(name, size, W) {
   return p.join("");
 }
 
-function shipSVG(style, name, size, W) {
-  return style === "pirate" ? pirateShipSVG(name, size, W) : milShipSVG(name, size, W);
+const WAKE_SVG = `<g class="wake">
+    <ellipse cx="-6" cy="9" rx="7" ry="1.6" fill="rgba(255,255,255,.5)"/>
+    <ellipse cx="-9" cy="17" rx="9" ry="2" fill="rgba(255,255,255,.45)"/>
+    <ellipse cx="-6" cy="25" rx="7" ry="1.6" fill="rgba(255,255,255,.5)"/>
+  </g>`;
+
+function shipSVG(style, name, size, W, wake) {
+  const inner =
+    style === "pirate"
+      ? pirateShipSVG(name, size, W)
+      : milShipSVG(name, size, W);
+  return inner + (wake ? WAKE_SVG : "");
 }
 
 function renderShips(boardEl, ships) {
@@ -464,19 +477,35 @@ function renderShips(boardEl, ships) {
     const c = Math.min(...cols);
     const horizontal = rows.every((x) => x === r);
     const W = s.size * 36 - 2;
+    const wrap = document.createElement("div");
+    wrap.className = "ship-bob" + (s.sunk ? " sunk" : "");
+    wrap.style.left = c * 36 + "px";
+    wrap.style.top = r * 36 + "px";
+    wrap.style.width = W + "px";
+    wrap.style.height = "34px";
+    if (s.sunk) {
+      const slick = document.createElement("div");
+      slick.className = "slick";
+      wrap.appendChild(slick);
+    } else {
+      wrap.style.setProperty("--bob-dur", (2.6 + Math.random() * 1.2).toFixed(2) + "s");
+      wrap.style.animationDelay = (-Math.random() * 3).toFixed(2) + "s";
+    }
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", `ship-sprite ${fleetStyle}${s.sunk ? " sunk" : ""}`);
     svg.setAttribute("width", W);
     svg.setAttribute("height", 34);
     svg.setAttribute("viewBox", `0 0 ${W} 34`);
-    svg.style.left = c * 36 + "px";
-    svg.style.top = r * 36 + "px";
+    svg.style.position = "absolute";
+    svg.style.left = "0";
+    svg.style.top = "0";
     if (!horizontal)
       svg.style.transform = s.sunk ? "rotate(90deg) rotate(4deg)" : "rotate(90deg)";
     else if (s.sunk) svg.style.transform = "rotate(4deg)";
     svg.style.transformOrigin = "17px 17px";
-    svg.innerHTML = shipSVG(fleetStyle, s.name, s.size, W);
-    layer.appendChild(svg);
+    svg.innerHTML = shipSVG(fleetStyle, s.name, s.size, W, !s.sunk);
+    wrap.appendChild(svg);
+    layer.appendChild(wrap);
   }
 }
 

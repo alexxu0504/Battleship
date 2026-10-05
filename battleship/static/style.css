@@ -71,10 +71,57 @@ main { padding: 24px; }
 
 .board {
   position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: repeat(10, 34px);
   grid-template-rows: repeat(10, 34px);
   gap: 2px;
+  padding: 0;
+}
+
+.water {
+  position: absolute;
+  inset: -6px;
+  border-radius: 8px;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(160deg, #0b7f7a 0%, #0fa39c 45%, #13b5ad 100%);
+}
+
+.water::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='40' viewBox='0 0 120 40'><path d='M0 12 Q15 6 30 12 T60 12 T90 12 T120 12' fill='none' stroke='rgba(255,255,255,0.22)' stroke-width='1.5'/><path d='M0 30 Q15 24 30 30 T60 30 T90 30 T120 30' fill='none' stroke='rgba(255,255,255,0.22)' stroke-width='1.5'/></svg>");
+  animation: waves-drift 9s linear infinite;
+}
+
+.water::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(ellipse at 30% 40%, rgba(255, 255, 255, 0.18), transparent 40%),
+    radial-gradient(ellipse at 70% 65%, rgba(255, 255, 255, 0.14), transparent 45%);
+  background-size: 160px 120px;
+  mix-blend-mode: overlay;
+  animation: caustics-drift 14s linear infinite, caustics-breathe 6s ease-in-out infinite alternate;
+}
+
+@keyframes waves-drift {
+  from { background-position: 0 0; }
+  to { background-position: 120px 8px; }
+}
+
+@keyframes caustics-drift {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 160px 120px, -160px 120px; }
+}
+
+@keyframes caustics-breathe {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
 }
 
 .cell {
@@ -82,30 +129,44 @@ main { padding: 24px; }
   overflow: visible;
   width: 34px;
   height: 34px;
-  background: #d7f3f1;
-  border: 1px solid #8fd9d5;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
+  z-index: 1;
 }
 
 .board.clickable .cell { cursor: crosshair; }
-.board.clickable .cell:not(.hit):not(.miss):not(.sunk):hover { background: #ffffff; }
+.board.clickable .cell:not(.hit):not(.miss):not(.sunk):hover { background: rgba(255, 255, 255, 0.35); }
 
-.cell.ship { background: #bfe9e6; }
-.cell.hit { background: #e5484d; }
-.cell.sunk { background: #8c1d21; }
+.cell.ship { background: rgba(255, 255, 255, 0.06); }
+.cell.hit { background: rgba(229, 72, 77, 0.85); }
+.cell.sunk { background: rgba(140, 29, 33, 0.9); }
 
-.cell.miss { background: #bfe9e6; }
+.cell.miss { background: rgba(255, 255, 255, 0.10); }
 .cell.miss::after {
   content: "";
-  width: 14px;
-  height: 14px;
+  position: absolute;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: #0f2e2d;
-  opacity: 0.75;
+  background: rgba(255, 255, 255, 0.85);
+}
+.cell.miss::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  animation: ripple 2.4s ease-out infinite;
+}
+
+@keyframes ripple {
+  from { transform: scale(0.4); opacity: 0.8; }
+  to   { transform: scale(1.6); opacity: 0; }
 }
 
 .cell.ghost-valid { background: #4caf50 !important; }
@@ -116,7 +177,7 @@ main { padding: 24px; }
   position: absolute;
   inset: -60px;
   pointer-events: none;
-  z-index: 4;
+  z-index: 6;
   overflow: visible;
 }
 
@@ -230,7 +291,7 @@ main { padding: 24px; }
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 1;
+  z-index: 2;
 }
 
 .ship-sprite {
@@ -242,12 +303,47 @@ main { padding: 24px; }
 
 .ship-sprite.sunk { filter: grayscale(0.7) brightness(0.55); }
 
+.ship-bob {
+  position: absolute;
+  z-index: 1;
+  animation: bob var(--bob-dur, 3.2s) ease-in-out infinite alternate;
+}
+.ship-bob.sunk { animation: none; }
+
+@keyframes bob {
+  from { transform: translateY(-1.2px) rotate(-0.6deg); }
+  to   { transform: translateY(1.2px) rotate(0.6deg); }
+}
+
+.ship-sprite .wake { animation: wake-pulse 1.8s ease-in-out infinite; }
+
+@keyframes wake-pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.6; }
+}
+
+.slick {
+  position: absolute;
+  left: 8%;
+  top: 25%;
+  width: 84%;
+  height: 130%;
+  background: radial-gradient(ellipse, rgba(20, 20, 25, 0.55), transparent 70%);
+  animation: slick-grow 6s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes slick-grow {
+  from { transform: scale(0.6); opacity: 0.9; }
+  to   { transform: scale(1.1); opacity: 0.8; }
+}
+
 /* Burning fire on hit cells */
 .fire {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 2;
+  z-index: 3;
 }
 
 .fire i {
@@ -304,7 +400,7 @@ main { padding: 24px; }
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 3;
+  z-index: 5;
 }
 
 .boom .fireball {
@@ -392,6 +488,11 @@ body.shake { animation: shake 0.35s; }
   .fire i, .fire .smoke { animation: none; }
   .boom .spark, .boom .shockwave { animation-duration: 0.01s; }
   body.shake { animation: none; }
+  .water::before, .water::after { animation: none; }
+  .ship-bob { animation: none; }
+  .ship-sprite .wake { animation: none; }
+  .cell.miss::before { animation: none; }
+  .last-ring { animation: none; }
 }
 
 #tray { display: flex; flex-direction: column; gap: 8px; }
@@ -478,7 +579,7 @@ body.shake { animation: shake 0.35s; }
   border: 2px solid #ffd54a;
   border-radius: 5px;
   pointer-events: none;
-  z-index: 3;
+  z-index: 4;
   animation: last-pulse 1.4s ease-in-out infinite;
 }
 #player-board .last-ring { border-color: #ff5252; }
