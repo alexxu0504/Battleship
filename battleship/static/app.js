@@ -69,6 +69,9 @@ function render(opts = {}) {
   $("difficulty").disabled = state.phase === "playing";
   $("difficulty").title =
     state.phase === "playing" ? "Difficulty is locked during a battle" : "";
+  $("fleet-style").disabled = state.phase === "playing";
+  $("fleet-style").title =
+    state.phase === "playing" ? "Fleet style is locked during a battle" : "";
   if (state.phase === "placement") {
     $("placement").classList.remove("hidden");
     $("battle").classList.add("hidden");
