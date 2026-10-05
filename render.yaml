@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: battleship
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # Single worker is REQUIRED: games live in process memory,
+    # multiple workers would lose state between requests.
+    startCommand: gunicorn -w 1 -k gthread --threads 8 -b 0.0.0.0:$PORT battleship.app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4

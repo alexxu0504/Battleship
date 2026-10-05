@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from collections import OrderedDict
 
@@ -121,4 +122,7 @@ def fire(game_id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    port = int(os.environ.get("PORT", 5001))
+    host = "0.0.0.0" if "PORT" in os.environ else "127.0.0.1"
+    debug = os.environ.get("FLASK_DEBUG", "0" if "PORT" in os.environ else "1") == "1"
+    app.run(host=host, port=port, debug=debug)

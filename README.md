@@ -37,3 +37,13 @@ Then open **http://127.0.0.1:5001**
 Sound effects (bombs, explosions, splashes, fanfares) and the ambient artillery/aircraft are synthesized live with the Web Audio API. Browsers require a click before audio can start; use the speaker button in the header to mute and the ♪ slider to set the music volume.
 
 Background music: "Hot Swing" by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 3.0 — http://creativecommons.org/licenses/by/3.0/ (see `battleship/static/music/CREDITS.txt`).
+
+## Deploy
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/alexxu0504/Battleship)
+
+1. Click the button and sign in to Render with GitHub.
+2. Accept the blueprint — it reads `render.yaml` automatically.
+3. Wait for the build to finish and open the URL.
+
+Note: the free tier sleeps after ~15 minutes idle, so the first load can take 30–60s. Games are held in memory on a single instance, so a restart or sleep resets all in-progress games.
