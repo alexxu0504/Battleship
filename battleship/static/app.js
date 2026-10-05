@@ -295,6 +295,11 @@ function showGameOver() {
     [state.ai.sunk_ships.length + "/5", "enemy sunk"],
     [state.player.ships.filter((s) => s.sunk).length + "/5", "ships lost"],
   ];
+  const eShots = state.player.shots.length;
+  const eHits = state.player.shots.filter((s) => s[2] === "hit").length;
+  const eAcc = eShots ? Math.round((eHits / eShots) * 100) : 0;
+  $("gameover-line").textContent = `You: ${shots} shots · ${hits} hits · ${acc}% accuracy`;
+  $("gameover-line-enemy").textContent = `Enemy: ${eShots} shots · ${eHits} hits · ${eAcc}% accuracy`;
   $("gameover-stats").innerHTML = stats
     .map(([v, l]) => `<li><b>${v}</b>${l}</li>`)
     .join("");
