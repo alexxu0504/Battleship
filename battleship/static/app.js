@@ -66,7 +66,12 @@ function render(opts = {}) {
         : "Your turn — click the enemy grid to fire";
     renderPlayerBoard();
     renderEnemyBoard();
-    renderFleet();
+    renderFleetList($("player-fleet"), state.player.ships, state.player.shots, {
+      known: true,
+    });
+    renderFleetList($("enemy-fleet"), state.ai.ships, state.ai.shots, {
+      known: false,
+    });
     renderLog();
     if (state.phase === "over" && !opts.deferGameOver) {
       showGameOver();
@@ -481,14 +486,8 @@ function renderTray() {
     if (placed.has(name)) div.classList.add("placed");
     const label = document.createElement("span");
     label.textContent = `${name} (${size})`;
-    const mini = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    const vW = size * 36 - 2;
-    mini.setAttribute("class", `ship-sprite ${fleetStyle}`);
-    mini.setAttribute("viewBox", `0 0 ${vW} 34`);
-    mini.setAttribute("width", size * 18);
-    mini.setAttribute("height", 17);
+    const mini = miniSprite(name, size, size * 18, 17);
     mini.style.position = "static";
-    mini.innerHTML = shipSVG(fleetStyle, name, size, vW);
     div.appendChild(mini);
     div.appendChild(label);
     div.onclick = () => {
@@ -885,14 +884,61 @@ async function fire(row, col) {
   }
 }
 
-function renderFleet() {
-  const ul = $("enemy-fleet");
+function miniSprite(name, size, w, h) {
+  const mini = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const vW = size * 36 - 2;
+  mini.setAttribute("class", `ship-sprite ${fleetStyle}`);
+  mini.setAttribute("viewBox", `0 0 ${vW} 34`);
+  mini.setAttribute("width", w);
+  mini.setAttribute("height", h);
+  mini.innerHTML = shipSVG(fleetStyle, name, size, vW);
+  return mini;
+}
+
+function renderFleetList(ul, ships, shots, { known }) {
   ul.innerHTML = "";
-  const sunkSet = new Set(state.ai.sunk_ships);
-  for (const [name] of SHIPS) {
+  const byName = {};
+  for (const s of ships || []) byName[s.name] = s;
+  const shotCells = {};
+  for (const [r, c, res] of shots || []) shotCells[`${r},${c}`] = res;
+  for (const [name, size] of SHIPS) {
+    const s = byName[name];
+    let hits = 0;
+    let sunk = false;
+    let cellsKnown = false;
+    if (s) {
+      sunk = s.sunk;
+      cellsKnown = !!s.cells;
+      if (cellsKnown) {
+        for (const [r, c] of s.cells)
+          if (shotCells[`${r},${c}`] === "hit") hits++;
+      }
+      if (sunk) hits = size;
+    }
+    const canDamage = (known || cellsKnown) && !sunk && hits > 0;
     const li = document.createElement("li");
-    li.textContent = name + (sunkSet.has(name) ? " — sunk" : "");
-    if (sunkSet.has(name)) li.classList.add("sunk");
+    li.className = "fleet-row" + (sunk ? " sunk" : canDamage ? " damaged" : "");
+    li.appendChild(miniSprite(name, size, size * 14, 13));
+    const nm = document.createElement("span");
+    nm.className = "fleet-name";
+    nm.textContent = name;
+    li.appendChild(nm);
+    const pips = document.createElement("span");
+    pips.className = "pips";
+    for (let i = 0; i < size; i++) {
+      const pip = document.createElement("i");
+      if (i < hits) pip.classList.add("hit");
+      pips.appendChild(pip);
+    }
+    li.appendChild(pips);
+    const st = document.createElement("span");
+    st.className = "fleet-state";
+    st.textContent = sunk
+      ? "Sunk"
+      : canDamage
+      ? `Damaged (${hits}/${size})`
+      : "Afloat";
+    li.appendChild(st);
     ul.appendChild(li);
   }
 }
