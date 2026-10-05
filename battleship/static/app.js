@@ -1008,12 +1008,13 @@ function withoutAiShot(st, as) {
     as.sunk && s.name === as.sunk ? { ...s, sunk: false } : s
   );
   const log = st.log.slice();
-  while (log.length && log[log.length - 1].who === "ai") log.pop();
+  while (log.length && log[log.length - 1].who !== "player") log.pop();
   return {
     ...st,
     phase: "playing",
     winner: null,
     player: { ...st.player, shots, ships },
+    ai: { ...st.ai, ships: (st.ai.ships || []).filter((s) => s.sunk) },
     log,
   };
 }
