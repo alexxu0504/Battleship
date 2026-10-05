@@ -136,7 +136,6 @@ main { padding: 24px; }
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  z-index: 1;
 }
 
 .board.clickable .cell { cursor: crosshair; }
@@ -150,6 +149,7 @@ main { padding: 24px; }
 .cell.miss::after {
   content: "";
   position: absolute;
+  z-index: 1;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -158,6 +158,7 @@ main { padding: 24px; }
 .cell.miss::before {
   content: "";
   position: absolute;
+  z-index: 1;
   inset: 8px;
   border: 1.5px solid rgba(255, 255, 255, 0.7);
   border-radius: 50%;
@@ -571,7 +572,6 @@ body.shake { animation: shake 0.35s; }
 .cell.last-shot {
   outline: 2px solid #fff;
   outline-offset: -2px;
-  z-index: 2;
 }
 .last-ring {
   position: absolute;
