@@ -15,15 +15,21 @@ let busy = false;
 let lastShots = { player: null, ai: null };
 
 function markLastShot(boardEl, r, c) {
-  boardEl
-    .querySelectorAll(".cell.last-shot")
-    .forEach((d) => d.classList.remove("last-shot"));
-  boardEl.querySelectorAll(".last-ring").forEach((d) => d.remove());
+  boardEl.querySelectorAll(".cell.last-shot").forEach((d) => {
+    if (+d.dataset.row !== r || +d.dataset.col !== c)
+      d.classList.remove("last-shot");
+  });
+  boardEl.querySelectorAll(".last-ring").forEach((d) => {
+    const p = d.parentElement;
+    if (!p || +p.dataset.row !== r || +p.dataset.col !== c) d.remove();
+  });
   const cell = cellAt(boardEl, r, c);
   cell.classList.add("last-shot");
-  const ring = document.createElement("span");
-  ring.className = "last-ring";
-  cell.appendChild(ring);
+  if (!cell.querySelector(":scope > .last-ring")) {
+    const ring = document.createElement("span");
+    ring.className = "last-ring";
+    cell.appendChild(ring);
+  }
 }
 
 const $ = (id) => document.getElementById(id);
@@ -375,7 +381,7 @@ function playDefeat() {
 }
 
 function makeBoard(el) {
-  el.innerHTML = "";
+  if (el._cells) return el._cells;
   const water = document.createElement("div");
   water.className = "water";
   el.appendChild(water);
@@ -396,11 +402,59 @@ function makeBoard(el) {
   const sky = document.createElement("div");
   sky.className = "sky-layer";
   el.appendChild(sky);
+  el._cells = cells;
+  let lastHoverKey = null;
+  el.addEventListener("click", (e) => {
+    const cell = e.target.closest(".cell");
+    if (cell && el.contains(cell) && el._onCellClick)
+      el._onCellClick(+cell.dataset.row, +cell.dataset.col);
+  });
+  el.addEventListener("mouseover", (e) => {
+    const cell = e.target.closest(".cell");
+    const key =
+      cell && el.contains(cell) ? `${cell.dataset.row},${cell.dataset.col}` : null;
+    if (key === lastHoverKey) return;
+    lastHoverKey = key;
+    if (el._onCellHover)
+      el._onCellHover(
+        cell ? +cell.dataset.row : null,
+        cell ? +cell.dataset.col : null
+      );
+  });
+  el.addEventListener("mouseleave", () => {
+    if (lastHoverKey === null) return;
+    lastHoverKey = null;
+    if (el._onCellHover) el._onCellHover(null, null);
+  });
   return cells;
 }
 
 function cellAt(el, r, c) {
-  return el.querySelectorAll(".cell")[r * SIZE + c];
+  if (!el._cells) makeBoard(el);
+  return el._cells[r * SIZE + c];
+}
+
+function setCellState(cell, { ship = false, hit = false, sunk = false, miss = false }) {
+  cell.classList.toggle("ship", ship);
+  cell.classList.toggle("hit", hit);
+  cell.classList.toggle("sunk", sunk);
+  cell.classList.toggle("miss", miss);
+  const fire = cell.querySelector(":scope > .fire");
+  if (hit || sunk) {
+    if (!fire || fire.classList.contains("sunk") !== sunk) {
+      if (fire) fire.remove();
+      addFire(cell, sunk);
+    }
+  } else if (fire) {
+    fire.remove();
+  }
+}
+
+function clearLastShot(el) {
+  el.querySelectorAll(".cell.last-shot").forEach((d) =>
+    d.classList.remove("last-shot")
+  );
+  el.querySelectorAll(".last-ring").forEach((d) => d.remove());
 }
 
 let fleetStyle = localStorage.getItem("battleship.fleet") || "military";
@@ -522,8 +576,15 @@ function shipSVG(style, name, size, W, { wake = false, sunk = false } = {}) {
 function renderShips(boardEl, ships) {
   const layer = boardEl.querySelector(".ship-layer");
   if (!layer) return;
+  const list = ships || [];
+  const key =
+    fleetStyle +
+    "|" +
+    JSON.stringify(list.map((s) => [s.name, s.cells, !!s.sunk]));
+  if (layer.dataset.key === key) return;
+  layer.dataset.key = key;
   layer.innerHTML = "";
-  for (const s of ships || []) {
+  for (const s of list) {
     const rows = s.cells.map((c) => c[0]);
     const cols = s.cells.map((c) => c[1]);
     const r = Math.min(...rows);
@@ -613,32 +674,25 @@ let hoverPos = null;
 function renderPlacementBoard() {
   const el = $("place-board");
   makeBoard(el);
+  el._onCellClick = (r, c) => {
+    const ship = state.player.ships.find((s) =>
+      s.cells.some(([sr, sc]) => sr === r && sc === c)
+    );
+    if (ship) pickupShip(ship.name);
+    else placeShip(r, c);
+  };
+  el._onCellHover = (r, c) => {
+    hoverPos = r === null ? null : { row: r, col: c };
+    drawGhost();
+  };
   const ships = shipCellsSet(state.player.ships);
-  for (const key in ships) {
-    const [r, c] = key.split(",").map(Number);
-    cellAt(el, r, c).classList.add("ship");
-  }
-  renderShips(el, state.player.ships);
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
-      const d = cellAt(el, r, c);
-      d.addEventListener("mouseenter", () => {
-        hoverPos = { row: r, col: c };
-        drawGhost();
-      });
-      d.addEventListener("mouseleave", () => {
-        hoverPos = null;
-        drawGhost();
-      });
-      d.addEventListener("click", () => {
-        const ship = state.player.ships.find((s) =>
-          s.cells.some(([sr, sc]) => sr === r && sc === c)
-        );
-        if (ship) pickupShip(ship.name);
-        else placeShip(r, c);
-      });
+      setCellState(cellAt(el, r, c), { ship: !!ships[`${r},${c}`] });
     }
   }
+  renderShips(el, state.player.ships);
+  drawGhost();
 }
 
 function drawGhost() {
@@ -708,26 +762,26 @@ async function pickupShip(name) {
 function renderPlayerBoard() {
   const el = $("player-board");
   makeBoard(el);
+  el._onCellClick = null;
+  el._onCellHover = null;
   const ships = shipCellsSet(state.player.ships);
   const shots = shotsMap(state.player.shots);
-  for (const key in ships) {
-    const [r, c] = key.split(",").map(Number);
-    cellAt(el, r, c).classList.add("ship");
-  }
-  for (const key in shots) {
-    const [r, c] = key.split(",").map(Number);
-    const d = cellAt(el, r, c);
-    if (shots[key] === "hit") {
-      const s = ships[key];
-      const sunk = s && s.sunk;
-      d.classList.add(sunk ? "sunk" : "hit");
-      addFire(d, sunk);
-    } else {
-      d.classList.add("miss");
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const res = shots[`${r},${c}`];
+      const ship = ships[`${r},${c}`];
+      const sunk = res === "hit" && !!(ship && ship.sunk);
+      setCellState(cellAt(el, r, c), {
+        ship: !!ship,
+        hit: res === "hit" && !sunk,
+        sunk,
+        miss: res === "miss",
+      });
     }
   }
   renderShips(el, state.player.ships);
   if (lastShots.ai) markLastShot(el, lastShots.ai[0], lastShots.ai[1]);
+  else clearLastShot(el);
 }
 
 function renderEnemyBoard() {
@@ -735,37 +789,28 @@ function renderEnemyBoard() {
   makeBoard(el);
   const shots = shotsMap(state.ai.shots);
   const aiShips = state.ai.ships ? shipCellsSet(state.ai.ships) : {};
-  const sunkSet = new Set(state.ai.sunk_ships);
-  for (const key in shots) {
-    const [r, c] = key.split(",").map(Number);
-    const d = cellAt(el, r, c);
-    if (shots[key] === "hit") {
-      const s = aiShips[key];
-      const sunk = s && s.sunk;
-      d.classList.add(sunk ? "sunk" : "hit");
-      addFire(d, sunk);
-    } else {
-      d.classList.add("miss");
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const res = shots[`${r},${c}`];
+      const ship = aiShips[`${r},${c}`];
+      const sunk =
+        (res === "hit" && !!(ship && ship.sunk)) ||
+        (!!ship && ship.sunk);
+      setCellState(cellAt(el, r, c), {
+        hit: res === "hit" && !sunk,
+        sunk,
+        miss: res === "miss",
+      });
     }
-  }
-  for (const key in aiShips) {
-    const [r, c] = key.split(",").map(Number);
-    const s = aiShips[key];
-    if (s.sunk) cellAt(el, r, c).classList.add("sunk");
   }
   renderShips(el, state.ai.ships);
   if (lastShots.player)
     markLastShot(el, lastShots.player[0], lastShots.player[1]);
-  if (state.phase === "playing") {
-    el.classList.add("clickable");
-    for (let r = 0; r < SIZE; r++) {
-      for (let c = 0; c < SIZE; c++) {
-        cellAt(el, r, c).addEventListener("click", () => fire(r, c));
-      }
-    }
-  } else {
-    el.classList.remove("clickable");
-  }
+  else clearLastShot(el);
+  const playing = state.phase === "playing";
+  el.classList.toggle("clickable", playing);
+  el._onCellClick = playing ? (r, c) => fire(r, c) : null;
+  el._onCellHover = null;
 }
 
 function planeSVG(side) {
