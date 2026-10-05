@@ -44,6 +44,17 @@ select, button {
 
 #mute { width: 44px; text-align: center; }
 
+.vol { display: flex; align-items: center; gap: 6px; color: #0f2e2d; }
+.vol input { width: 90px; accent-color: #036c69; }
+
+footer {
+  margin-top: 24px;
+  font-size: 12px;
+  color: #0f2e2d;
+  opacity: 0.75;
+}
+footer a { color: #0f2e2d; text-decoration: underline; }
+
 button:hover:not(:disabled) { background: #ffffff; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 

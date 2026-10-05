@@ -6,6 +6,10 @@ const GameAudio = (() => {
   let muted = localStorage.getItem("battleship.muted") === "1";
   let ambience = null;
   let noiseBuf = null;
+  let music = null;
+  let musicGain = null;
+  let musicVolume = parseFloat(localStorage.getItem("battleship.music"));
+  if (!(musicVolume >= 0 && musicVolume <= 1)) musicVolume = 0.35;
 
   function init() {
     if (!ctx) {
@@ -19,11 +23,37 @@ const GameAudio = (() => {
       sfxGain.gain.value = 0.8;
       sfxGain.connect(master);
       ambGain = ctx.createGain();
-      ambGain.gain.value = 0.35;
+      ambGain.gain.value = 0.2;
       ambGain.connect(master);
+      music = new Audio("/static/music/hot_swing.mp3");
+      music.loop = true;
+      music.preload = "auto";
+      const musicSrc = ctx.createMediaElementSource(music);
+      musicGain = ctx.createGain();
+      musicGain.gain.value = musicVolume;
+      musicSrc.connect(musicGain);
+      musicGain.connect(master);
+      music.play().catch(() => {});
       if (!muted) startAmbience();
     }
     if (ctx.state === "suspended") ctx.resume();
+  }
+
+  function setMusicVolume(v) {
+    v = Math.min(1, Math.max(0, v));
+    musicVolume = v;
+    localStorage.setItem("battleship.music", String(v));
+    if (musicGain && ctx) {
+      const t = ctx.currentTime;
+      musicGain.gain.cancelScheduledValues(t);
+      musicGain.gain.setValueAtTime(musicGain.gain.value, t);
+      musicGain.gain.linearRampToValueAtTime(v, t + 0.1);
+    }
+    return v;
+  }
+
+  function getMusicVolume() {
+    return musicVolume;
   }
 
   function setMuted(m) {
@@ -258,53 +288,6 @@ const GameAudio = (() => {
     const timeouts = [];
     let stopped = false;
 
-    // Ocean waves: looping noise -> lowpass 400 -> LFO-modulated gain
-    const oceanSrc = ctx.createBufferSource();
-    oceanSrc.buffer = noiseBuffer(4);
-    oceanSrc.loop = true;
-    const oceanFilt = ctx.createBiquadFilter();
-    oceanFilt.type = "lowpass";
-    oceanFilt.frequency.value = 400;
-    const oceanGain = ctx.createGain();
-    oceanGain.gain.value = 0.5;
-    const lfo = ctx.createOscillator();
-    lfo.type = "sine";
-    lfo.frequency.value = 0.08;
-    const lfoDepth = ctx.createGain();
-    lfoDepth.gain.value = 0.5;
-    lfo.connect(lfoDepth);
-    lfoDepth.connect(oceanGain.gain);
-    oceanSrc.connect(oceanFilt);
-    oceanFilt.connect(oceanGain);
-    oceanGain.connect(ambGain);
-    oceanSrc.start();
-    lfo.start();
-    nodes.push(oceanSrc, lfo);
-
-    // Surf hiss: looping noise -> bandpass 1500 -> LFO gain
-    const hissSrc = ctx.createBufferSource();
-    hissSrc.buffer = noiseBuffer(4);
-    hissSrc.loop = true;
-    const hissFilt = ctx.createBiquadFilter();
-    hissFilt.type = "bandpass";
-    hissFilt.frequency.value = 1500;
-    hissFilt.Q.value = 0.5;
-    const hissGain = ctx.createGain();
-    hissGain.gain.value = 0.15;
-    const hissLfo = ctx.createOscillator();
-    hissLfo.type = "sine";
-    hissLfo.frequency.value = 0.13;
-    const hissLfoDepth = ctx.createGain();
-    hissLfoDepth.gain.value = 0.1;
-    hissLfo.connect(hissLfoDepth);
-    hissLfoDepth.connect(hissGain.gain);
-    hissSrc.connect(hissFilt);
-    hissFilt.connect(hissGain);
-    hissGain.connect(ambGain);
-    hissSrc.start();
-    hissLfo.start();
-    nodes.push(hissSrc, hissLfo);
-
     // Distant artillery
     function scheduleArtillery() {
       if (stopped) return;
@@ -401,6 +384,8 @@ const GameAudio = (() => {
     setMuted,
     toggleMute,
     isMuted,
+    setMusicVolume,
+    getMusicVolume,
     bombWhistle,
     explosion,
     splash,
@@ -412,6 +397,9 @@ const GameAudio = (() => {
     stopAmbience,
     get _ctx() {
       return ctx;
+    },
+    get _music() {
+      return music;
     },
   };
 })();

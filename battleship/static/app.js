@@ -541,6 +541,13 @@ function renderLog() {
   log.scrollTop = log.scrollHeight;
 }
 
+const volSlider = $("music-vol");
+volSlider.value = GameAudio.getMusicVolume() * 100;
+volSlider.addEventListener("input", () => {
+  GameAudio.init();
+  GameAudio.setMusicVolume(volSlider.value / 100);
+});
+
 const fleetSel = $("fleet-style");
 fleetSel.value = fleetStyle;
 fleetSel.onchange = () => {
