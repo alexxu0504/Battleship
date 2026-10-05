@@ -65,6 +65,10 @@ async function newGame() {
 
 function render(opts = {}) {
   $("gameover").classList.add("hidden");
+  $("difficulty").value = state.difficulty;
+  $("difficulty").disabled = state.phase === "playing";
+  $("difficulty").title =
+    state.phase === "playing" ? "Difficulty is locked during a battle" : "";
   if (state.phase === "placement") {
     $("placement").classList.remove("hidden");
     $("battle").classList.add("hidden");
@@ -1025,6 +1029,19 @@ function renderLog() {
     .join("");
   log.scrollTop = log.scrollHeight;
 }
+
+$("difficulty").addEventListener("change", async (e) => {
+  if (state.phase === "placement") {
+    try {
+      state = (
+        await api(`/api/games/${gameId}/difficulty`, "POST", {
+          difficulty: e.target.value,
+        })
+      ).state;
+      render();
+    } catch (err) {}
+  }
+});
 
 const volSlider = $("music-vol");
 volSlider.value = GameAudio.getMusicVolume() * 100;

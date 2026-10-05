@@ -114,6 +114,12 @@ class Game:
     def _log(self, who: str, text: str) -> None:
         self.log.append({"who": who, "text": text})
 
+    def set_difficulty(self, difficulty: str) -> None:
+        if self.phase != "placement":
+            raise ValueError("Difficulty can only be changed during placement")
+        self.ai = make_ai(difficulty, self.rng)
+        self.difficulty = difficulty
+
     def place_player_ship(self, name: str, row: int, col: int, horizontal: bool) -> None:
         if self.phase != "placement":
             raise ValueError("Game already started")

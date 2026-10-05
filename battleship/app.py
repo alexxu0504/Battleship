@@ -56,6 +56,17 @@ def place_ship(game_id):
     return jsonify({"state": game.to_state()})
 
 
+@app.route("/api/games/<game_id>/difficulty", methods=["POST"])
+def set_difficulty(game_id):
+    game = get_game(game_id)
+    body = request.get_json(force=True)
+    try:
+        game.set_difficulty(body["difficulty"])
+    except (ValueError, KeyError, TypeError) as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"state": game.to_state()})
+
+
 @app.route("/api/games/<game_id>/randomize", methods=["POST"])
 def randomize(game_id):
     game = get_game(game_id)

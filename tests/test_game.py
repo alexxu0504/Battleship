@@ -99,6 +99,22 @@ def test_fire_before_start_raises():
         g.player_fire(0, 0)
 
 
+def test_set_difficulty():
+    from battleship.ai import ProbabilityAI, RandomAI
+
+    g = Game("easy", seed=7)
+    assert isinstance(g.ai, RandomAI)
+    g.set_difficulty("hard")
+    assert g.difficulty == "hard"
+    assert isinstance(g.ai, ProbabilityAI)
+    with pytest.raises(ValueError):
+        g.set_difficulty("impossible")
+    g.randomize_player_board()
+    g.start()
+    with pytest.raises(ValueError):
+        g.set_difficulty("medium")
+
+
 def test_winner_set():
     g = Game("easy", seed=4)
     g.randomize_player_board()

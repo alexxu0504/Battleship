@@ -48,6 +48,17 @@ def test_start_before_placement(client):
     assert res.status_code == 400
 
 
+def test_difficulty_endpoint(client):
+    gid = client.post("/api/games", json={"difficulty": "easy"}).get_json()["id"]
+    res = client.post(f"/api/games/{gid}/difficulty", json={"difficulty": "hard"})
+    assert res.status_code == 200
+    assert res.get_json()["state"]["difficulty"] == "hard"
+    client.post(f"/api/games/{gid}/randomize")
+    client.post(f"/api/games/{gid}/start")
+    res = client.post(f"/api/games/{gid}/difficulty", json={"difficulty": "easy"})
+    assert res.status_code == 400
+
+
 def test_unknown_id(client):
     assert client.get("/api/games/nope").status_code == 404
     assert client.post("/api/games/nope/fire", json={"row": 0, "col": 0}).status_code == 404
